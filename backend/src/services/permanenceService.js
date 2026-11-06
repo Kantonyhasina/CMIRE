@@ -1,13 +1,14 @@
 // Control : PermanenceService
 // Cas « Planifier la permanence des cadres / des surveillants » et « Consulter le planning de permanence ».
-// Règles RG1/RG2 : un agent en congé validé ou en mission ne peut pas être planifié.
-// RG8 : un chef de service ne planifie que les cadres de sa propre unité (l'administrateur : toutes).
+// RG1/RG2 : un agent en congé validé ou en mission ne peut pas être planifié.
+// RG8 : un chef ne peut modifier que le planning de sa propre unité, mais peut consulter les autres unités.
 const Semaine = require('../models/semaine');
 const Personnel = require('../models/personnel');
 const Poste = require('../models/poste');
 const Unite = require('../models/unite');
 const PermanenceCadre = require('../models/permanenceCadre');
 const PermanenceSurveillant = require('../models/permanenceSurveillant');
+const Agenda = require('../models/agenda');
 const disponibiliteService = require('./disponibiliteService');
 const db = require('../config/db');
 const { ROLES } = require('../config/roles');
@@ -25,11 +26,26 @@ function decrireSemaine(semaine) {
   return { dateDebut, dateFin, annee, numeroIso, enregistree: numeroSemaine !== null };
 }
 
-async function verifierDroitSurUnite(utilisateur, numeroUnite) {
-  if (utilisateur.fonction === ROLES.CHEF && utilisateur.numeroUnite !== numeroUnite) {
-    throw new ErreurMetier('Vous ne pouvez gérer que les permanences de votre unité', 403);
+// La consultation est autorisée pour toutes les unités par les routes réservées aux chefs.
+async function verifierUniteExiste(numeroUnite) {
+  if (!(await Unite.existe(numeroUnite))) {
+    throw new ErreurMetier('Unité inexistante', 404);
   }
-  if (!(await Unite.existe(numeroUnite))) throw new ErreurMetier('Unité inexistante', 404);
+}
+
+// La modification reste limitée à l'unité du chef connecté.
+async function verifierDroitModification(utilisateur, numeroUnite) {
+  await verifierUniteExiste(numeroUnite);
+
+  if (
+    utilisateur.fonction === ROLES.CHEF &&
+    Number(utilisateur.numeroUnite) !== Number(numeroUnite)
+  ) {
+    throw new ErreurMetier(
+      'Vous pouvez consulter les autres unités, mais modifier uniquement les permanences de votre unité',
+      403
+    );
+  }
 }
 
 function exigerTableau(affectations) {
@@ -41,40 +57,61 @@ function exigerTableau(affectations) {
 // Ajoute à chaque agent ses indisponibilités de la semaine (congé validé, mission).
 // Les permanences ne comptent pas ici : un agent peut avoir plusieurs créneaux.
 async function avecIndisponibilites(agents, semaine) {
+  if (agents.length === 0) return [];
+
   const resultats = await disponibiliteService.verifierDisponibilite(
-    agents.map((a) => a.matricule), semaine.dateDebut, semaine.dateFin, { ignorer: ['permanence'] });
-  return agents.map((agent, i) => ({ ...agent, indisponibilites: resultats[i].conflits }));
+    agents.map((a) => a.matricule),
+    semaine.dateDebut,
+    semaine.dateFin,
+    { ignorer: ['permanence'] }
+  );
+
+  return agents.map((agent, i) => ({
+    ...agent,
+    indisponibilites: resultats[i].conflits,
+  }));
 }
 
-// Refuse le planning si un agent est affecté un jour où il est en congé ou en mission
+// Refuse le planning si un agent est affecté un jour où il est en congé ou en mission.
 async function exigerSansConflit(affectations, semaine, agentsParMatricule) {
   const matricules = [...new Set(affectations.map((a) => a.matricule))];
   if (matricules.length === 0) return;
 
   const resultats = await disponibiliteService.verifierDisponibilite(
-    matricules, semaine.dateDebut, semaine.dateFin, { ignorer: ['permanence'] });
+    matricules,
+    semaine.dateDebut,
+    semaine.dateFin,
+    { ignorer: ['permanence'] }
+  );
   const conflitsParAgent = new Map(resultats.map((r) => [r.matricule, r.conflits]));
 
   const lignes = new Set();
   for (const a of affectations) {
     const date = dateDuJour(semaine.dateDebut, a.jour);
-    const conflit = conflitsParAgent.get(a.matricule).find((c) => c.dateDebut <= date && date <= c.dateFin);
+    const conflits = conflitsParAgent.get(a.matricule) || [];
+    const conflit = conflits.find((c) => c.dateDebut <= date && date <= c.dateFin);
+
     if (conflit) {
       const agent = agentsParMatricule.get(a.matricule);
-      lignes.add(`${agent.prenom} ${agent.nom} : ${a.jour} ${formaterDateFr(date)} (${conflit.detail})`);
+      if (agent) {
+        lignes.add(`${agent.prenom} ${agent.nom} : ${a.jour} ${formaterDateFr(date)} (${conflit.detail})`);
+      }
     }
   }
+
   if (lignes.size > 0) {
     throw new ErreurMetier('Planning refusé : certains agents sont indisponibles', 409, [...lignes]);
   }
 }
 
-// ---------- Cadres de maintenance ----------
+// ---------- Cadres de maintenance et chef de service ----------
 
 async function consulterCadres({ date, numeroUnite }) {
   const lundi = lundiDeLaSemaine(date);
   const semaine = await Semaine.decrire(lundi);
-  const cadres = await Personnel.findByFonction(ROLES.CADRE, { numeroUnite });
+
+  // Le chef est renvoyé en premier, puis les cadres de son unité.
+  const cadresEtChef = await Personnel.findCadresEtChefs({ numeroUnite });
   const affectations = semaine.numeroSemaine
     ? await PermanenceCadre.findBySemaineEtUnite(semaine.numeroSemaine, numeroUnite)
     : [];
@@ -83,24 +120,24 @@ async function consulterCadres({ date, numeroUnite }) {
     semaine: decrireSemaine(semaine),
     jours: joursDeLaSemaine(lundi),
     creneaux: CRENEAUX_CADRE,
-    agents: await avecIndisponibilites(cadres, semaine),
+    agents: await avecIndisponibilites(cadresEtChef, semaine),
     affectations,
   };
 }
 
-async function consulterCadresPour({ date, numeroUnite }, utilisateur) {
-  await verifierDroitSurUnite(utilisateur, numeroUnite);
+async function consulterCadresPour({ date, numeroUnite }) {
+  await verifierUniteExiste(numeroUnite);
   return consulterCadres({ date, numeroUnite });
 }
 
 async function enregistrerCadres({ date, numeroUnite, affectations }, utilisateur) {
-  await verifierDroitSurUnite(utilisateur, numeroUnite);
+  await verifierDroitModification(utilisateur, numeroUnite);
   exigerTableau(affectations);
 
   const lundi = lundiDeLaSemaine(date);
   const semaine = await Semaine.decrire(lundi);
-  const cadres = await Personnel.findByFonction(ROLES.CADRE, { numeroUnite });
-  const parMatricule = new Map(cadres.map((c) => [c.matricule, c]));
+  const cadresEtChef = await Personnel.findCadresEtChefs({ numeroUnite });
+  const parMatricule = new Map(cadresEtChef.map((agent) => [agent.matricule, agent]));
 
   const vues = new Set();
   for (const a of affectations) {
@@ -109,6 +146,7 @@ async function enregistrerCadres({ date, numeroUnite, affectations }, utilisateu
     }
     if (!JOURS.includes(a.jour)) throw new ErreurMetier(`Jour invalide : ${a.jour}`, 400);
     if (!CRENEAUX_CADRE.includes(a.creneau)) throw new ErreurMetier(`Créneau invalide : ${a.creneau}`, 400);
+
     const cle = `${a.matricule}|${a.jour}|${a.creneau}`;
     if (vues.has(cle)) throw new ErreurMetier('Affectation en double', 400);
     vues.add(cle);
@@ -120,6 +158,7 @@ async function enregistrerCadres({ date, numeroUnite, affectations }, utilisateu
     const numeroSemaine = await Semaine.trouverOuCreer(lundi, client);
     await PermanenceCadre.remplacer(numeroSemaine, numeroUnite, affectations, client);
   });
+
   return consulterCadres({ date, numeroUnite });
 }
 
@@ -168,8 +207,11 @@ async function enregistrerSurveillants({ date, affectations }) {
     if (!numerosPostes.has(a.numeroPoste)) throw new ErreurMetier(`Poste inconnu : ${a.numeroPoste}`, 400);
     if (!JOURS.includes(a.jour)) throw new ErreurMetier(`Jour invalide : ${a.jour}`, 400);
     if (!PLAGES_SURVEILLANT.includes(a.plage)) throw new ErreurMetier(`Plage horaire invalide : ${a.plage}`, 400);
+
     const cle = `${a.numeroPoste}|${a.jour}|${a.plage}`;
-    if (creneauxPris.has(cle)) throw new ErreurMetier('Deux surveillants sur le même poste et la même plage', 400);
+    if (creneauxPris.has(cle)) {
+      throw new ErreurMetier('Deux surveillants sur le même poste et la même plage', 400);
+    }
     creneauxPris.add(cle);
   }
 
@@ -179,6 +221,7 @@ async function enregistrerSurveillants({ date, affectations }) {
     const numeroSemaine = await Semaine.trouverOuCreer(lundi, client);
     await PermanenceSurveillant.remplacer(numeroSemaine, affectations, client);
   });
+
   return consulterSurveillants({ date });
 }
 
@@ -190,7 +233,8 @@ async function monPlanning({ date }, utilisateur) {
 
   let lignes = [];
   if (semaine.numeroSemaine) {
-    if (utilisateur.fonction === ROLES.CADRE) {
+    // Le chef assure lui aussi des permanences dans la grille des cadres.
+    if ([ROLES.CADRE, ROLES.CHEF].includes(utilisateur.fonction)) {
       lignes = (await PermanenceCadre.findByAgent(semaine.numeroSemaine, utilisateur.matricule))
         .map((l) => ({ ...l, poste: null }));
     } else if (utilisateur.fonction === ROLES.SURVEILLANT) {
@@ -202,7 +246,12 @@ async function monPlanning({ date }, utilisateur) {
     .map((l) => ({ jour: l.jour, date: dateDuJour(lundi, l.jour), horaire: l.horaire, poste: l.poste }))
     .sort((a, b) => a.date.localeCompare(b.date) || a.horaire.localeCompare(b.horaire));
 
-  return { semaine: decrireSemaine(semaine), permanences };
+  const [missions, conges] = await Promise.all([
+    Agenda.missionsDeLAgent(utilisateur.matricule, semaine.dateDebut, semaine.dateFin),
+    Agenda.congesDeLAgent(utilisateur.matricule, semaine.dateDebut, semaine.dateFin),
+  ]);
+
+  return { semaine: decrireSemaine(semaine), permanences, missions, conges };
 }
 
 module.exports = {

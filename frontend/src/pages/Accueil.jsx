@@ -22,18 +22,21 @@ export default function Accueil() {
       {estChef && (
         <ul className="liens">
           <li><Link to="/permanences">Planifier les permanences</Link></li>
+          <li><Link to="/missions">Planifier les missions et affecter les intervenants</Link></li>
+          <li><Link to="/demandes-conges">Traiter les demandes de congé</Link></li>
+          <li><Link to="/calendrier-conges">Consulter le calendrier des congés</Link></li>
           <li><Link to="/disponibilites">Consulter les disponibilités de mon unité</Link></li>
         </ul>
       )}
       {estAgent && (
         <ul className="liens">
-          <li><Link to="/mon-planning">Consulter mon planning de permanence</Link></li>
+          <li><Link to="/mon-planning">Consulter mon planning (permanences, missions, congés)</Link></li>
+          <li><Link to="/missions">Consulter le planning des missions</Link></li>
+          <li><Link to="/mes-conges">Demander un congé</Link></li>
+          <li><Link to="/calendrier-conges">Consulter le calendrier des congés</Link></li>
         </ul>
       )}
 
-      <p className="sous-titre">
-        Les modules missions et congés seront ajoutés dans les prochains incréments.
-      </p>
     </section>
   );
 }

@@ -43,8 +43,25 @@ function exigerDate(valeur) {
   return valeur;
 }
 
+function formaterPeriode(debut, fin) {
+  return debut === fin ? formaterDateFr(debut) : `du ${formaterDateFr(debut)} au ${formaterDateFr(fin)}`;
+}
+
+// Nombre de jours entre deux dates ISO (bornes incluses)
+function nombreDeJours(debut, fin) {
+  return Math.round((new Date(`${fin}T00:00:00Z`) - new Date(`${debut}T00:00:00Z`)) / 86400000) + 1;
+}
+
+// Trimestre civil (1 à 4) et année d'une date ISO
+function trimestreDe(iso) {
+  return { trimestre: Math.ceil(Number(iso.slice(5, 7)) / 3), annee: Number(iso.slice(0, 4)) };
+}
+
 module.exports = {
   ...module.exports,
+  formaterPeriode,
+  nombreDeJours,
+  trimestreDe,
   ajouterJours,
   lundiDeLaSemaine,
   formaterDateFr,

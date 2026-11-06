@@ -1,6 +1,6 @@
 // Control : cas « Générer le tableau de permanence »
 // Produit un classeur Excel de 2 feuilles qui reprend les tableaux papier du service :
-//   feuille 1 = tableau des quarts et permanences techniques (cadres), feuille 2 = surveillants.
+//   feuille 1 = tableau des quarts et permanences techniques (chef + cadres), feuille 2 = surveillants.
 const ExcelJS = require('exceljs');
 const Semaine = require('../models/semaine');
 const Personnel = require('../models/personnel');
@@ -27,7 +27,7 @@ async function rassemblerDonnees(date) {
   const semaine = await Semaine.decrire(lundiDeLaSemaine(date));
   const [unites, cadres, postes, surveillants, missions, conges] = await Promise.all([
     Unite.findAll(),
-    Personnel.findByFonction(ROLES.CADRE),
+    Personnel.findCadresEtChefs(),
     Poste.findAll(),
     Personnel.findByFonction(ROLES.SURVEILLANT),
     Agenda.missionsDeLaPeriode(semaine.dateDebut, semaine.dateFin),
@@ -161,7 +161,7 @@ function feuilleCadres(classeur, donnees) {
   });
   bloc(feuille, L1, TEL, L1 + 2, TEL, 'N°TPH', { gras: true, bord: true });
 
-  // Corps : une bande par unité, puis ses cadres
+  // Corps : une bande par unité, puis le chef de service en premier et les cadres
   const coches = new Set(affCadres.map((a) => `${a.matricule}|${a.jour}|${a.creneau}`));
   let ligne = L1 + 3;
   for (const unite of unites) {

@@ -9,6 +9,10 @@ import Referentiels from './pages/Referentiels.jsx';
 import Disponibilites from './pages/Disponibilites.jsx';
 import Permanences from './pages/Permanences.jsx';
 import MonPlanning from './pages/MonPlanning.jsx';
+import Missions from './pages/Missions.jsx';
+import MesConges from './pages/MesConges.jsx';
+import DemandesConges from './pages/DemandesConges.jsx';
+import CalendrierConges from './pages/CalendrierConges.jsx';
 
 export default function App() {
   return (
@@ -22,7 +26,23 @@ export default function App() {
         />
         <Route
           path="mon-planning"
-          element={<RequireAuth roles={[ROLES.CADRE, ROLES.SURVEILLANT]}><MonPlanning /></RequireAuth>}
+          element={<RequireAuth roles={[ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT]}><MonPlanning /></RequireAuth>}
+        />
+        <Route
+          path="missions"
+          element={<RequireAuth roles={[ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT]}><Missions /></RequireAuth>}
+        />
+        <Route
+          path="mes-conges"
+          element={<RequireAuth roles={[ROLES.CADRE, ROLES.SURVEILLANT]}><MesConges /></RequireAuth>}
+        />
+        <Route
+          path="demandes-conges"
+          element={<RequireAuth roles={[ROLES.CHEF]}><DemandesConges /></RequireAuth>}
+        />
+        <Route
+          path="calendrier-conges"
+          element={<RequireAuth roles={[ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT]}><CalendrierConges /></RequireAuth>}
         />
         <Route
           path="disponibilites"

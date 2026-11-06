@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { '/api': process.env.VITE_BACKEND_URL || 'http://localhost:3000' },
+    proxy: { '/api': process.env.VITE_BACKEND_URL || 'http://127.0.0.1:3000' },
   },
   test: {
     environment: 'jsdom',

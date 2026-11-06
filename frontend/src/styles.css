@@ -79,3 +79,91 @@ td.vide { color: var(--gris); text-align: center; }
 .grille-perm td.conflit { background: #fee2e2; }
 .grille-perm tr.bandeau th { background: #d9dee8; text-align: left; padding: .35rem .6rem; text-transform: none; letter-spacing: 0; color: #1e293b; }
 .grille-perm td.case-select select { padding: .25rem; font-size: .8rem; min-width: 90px; }
+
+/* ----- Missions et congés ----- */
+.pastille { display: inline-block; min-width: 1.2rem; margin-left: .4rem; padding: 0 .35rem; border-radius: 999px; background: #dc2626; color: #fff; font-size: .75rem; font-weight: 700; text-align: center; }
+.alerte.attention { background: #fef3c7; color: #78350f; border: 1px solid #fde68a; }
+.alerte.attention ul { margin: .25rem 0 0; padding-left: 1.2rem; }
+.badge.statut-ok { background: #dcfce7; color: var(--vert); }
+.badge.statut-ko { background: #fee2e2; color: var(--rouge); }
+.badge.statut-attente { background: #fef3c7; color: #92400e; }
+.formulaire-mission { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--bord); }
+.pleine-largeur { grid-column: 1 / -1; margin: 0; }
+.grille.annee { grid-template-columns: 110px; }
+.groupe-unite { margin: .1rem 0; }
+.agents-liste { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .5rem 1rem; }
+.agents-liste label { display: flex; gap: .5rem; align-items: center; font-weight: 500; margin: 0; }
+.agents-liste .indispo { color: var(--rouge); font-size: .8rem; margin-left: 1.6rem; }
+.calendrier { font-size: .72rem; min-width: 900px; }
+.calendrier th, .calendrier td { text-align: center; padding: .2rem 0; border: 1px solid #e5e9f0; min-width: 22px; }
+.calendrier th small { font-weight: 400; }
+.calendrier th.agent { text-align: left; padding: .2rem .5rem; white-space: nowrap; min-width: 150px; position: sticky; left: 0; background: #fff; text-transform: none; letter-spacing: 0; color: inherit; font-size: .8rem; }
+.calendrier .weekend { background: #f1f5f9; }
+.calendrier td.conge-valide, .echantillon.conge-valide { background: #3b82f6; }
+.calendrier td.conge-attente, .echantillon.conge-attente { background: repeating-linear-gradient(45deg, #fbbf24, #fbbf24 3px, #fde68a 3px, #fde68a 6px); }
+.legende { color: var(--gris); font-size: .85rem; }
+.echantillon { display: inline-block; width: 14px; height: 14px; border: 1px solid #cbd5e1; margin: 0 .35rem 0 1rem; vertical-align: middle; }
+
+/* ----- Autocomplétion des identifiants des surveillants ----- */
+.choix-categorie-surveillance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: .75rem 0 1rem;
+}
+.choix-categorie-surveillance button[aria-pressed="true"] {
+  background: var(--bleu-fonce);
+  color: #fff;
+}
+.compteur-agents { font-size: .82em; opacity: .8; }
+.grille-perm td.case-select { min-width: 125px; }
+.saisie-identifiant { position: relative; min-width: 110px; }
+.saisie-identifiant input {
+  width: 100%;
+  min-width: 105px;
+  padding: .35rem .4rem;
+  font-size: .82rem;
+  text-transform: uppercase;
+}
+.suggestions-identifiant {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .14);
+  text-align: left;
+}
+.suggestions-identifiant button {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  width: 100%;
+  padding: .5rem .6rem;
+  border-radius: 0;
+  background: #fff;
+  color: #1e293b;
+  text-align: left;
+  font-size: .8rem;
+  font-weight: 400;
+}
+.suggestions-identifiant button:hover:not(:disabled),
+.suggestions-identifiant button.suggestion-active:not(:disabled) {
+  background: #eff6ff;
+  filter: none;
+}
+.suggestions-identifiant button:disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+  opacity: 1;
+  cursor: not-allowed;
+}
+.suggestions-identifiant button span { flex: 1; }
+.suggestions-identifiant button small { color: var(--rouge); white-space: nowrap; }
+.suggestion-vide { padding: .55rem .65rem; color: var(--gris); font-size: .8rem; }

@@ -7,7 +7,7 @@ import { ajouterJours, semaineCourante } from '../utils/dates.js';
 const SEMAINE = { dateDebut: '2025-12-15', dateFin: '2025-12-21', annee: 2025, numeroIso: 51, enregistree: true };
 const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
   .map((nom, i) => ({ nom, date: `2025-12-${15 + i}` }));
-const UNITES = [200, [{ numero_unite: 1, nom_unite: 'CNS' }, { numero_unite: 3, nom_unite: 'RSI' }]];
+const UNITES = [200, [{ numero_unite: 1, nom_unite: 'TECH CNS' }, { numero_unite: 2, nom_unite: 'TECH ELB' }, { numero_unite: 3, nom_unite: 'RSI' }]];
 
 const CADRES = {
   semaine: SEMAINE, jours: JOURS, creneaux: ['06h-15h00', '15h00-18h30', '18h30-06h'],
@@ -23,8 +23,8 @@ const SURVEILLANTS = {
   semaine: SEMAINE, jours: JOURS, plages: ['06:00-12:00', '12:00-18:30', '18:30-06:00'],
   postes: [{ numero_poste: 1, nom_poste: 'Station terrienne Ivato' }, { numero_poste: 2, nom_poste: 'Centrale électrique Ivato' }],
   agents: [
-    { matricule: 'P005', nom: 'Rakoto', prenom: 'Johny', indisponibilites: [] },
-    { matricule: 'P006', nom: 'Rasoa', prenom: 'Nirina',
+    { matricule: 'P005', nom: 'Rakoto', prenom: 'Johny', identifiant: 'JRA', numeroUnite: 2, nomUnite: 'TECH ELB', indisponibilites: [] },
+    { matricule: 'P006', nom: 'Rasoa', prenom: 'Nirina', identifiant: 'NRA', numeroUnite: 1, nomUnite: 'TECH CNS',
       indisponibilites: [{ type: 'conge', dateDebut: '2025-12-17', dateFin: '2025-12-17', detail: 'Congé : Maladie' }] },
   ],
   affectations: [],
@@ -84,14 +84,14 @@ describe('planning des cadres', () => {
     expect(parametres(appel)).toEqual({ date: semaineCourante()[0], numeroUnite: '1' });
   });
 
-    it('chef de service : l\'unité est celle du chef et ne peut pas être changée', async () => {
-      ouvrirSession(CHEF);
-      api();
-      afficher('/permanences');
-      await screen.findByRole('option', { name: 'CNS' });
-      expect(screen.getByLabelText('Unité')).toBeDisabled();
-      expect(screen.getByLabelText('Unité')).toHaveValue('1');
-    });
+  it('chef de service : l\'unité est celle du chef et ne peut pas être changée', async () => {
+    ouvrirSession(CHEF);
+    api();
+    afficher('/permanences');
+    await screen.findByRole('option', { name: 'CNS' });
+    expect(screen.getByLabelText('Unité')).toBeDisabled();
+    expect(screen.getByLabelText('Unité')).toHaveValue('1');
+  });
 
   it('coche un créneau puis enregistre : envoie toutes les affectations avec la semaine et l\'unité', async () => {
     ouvrirSession(CHEF);
@@ -184,7 +184,7 @@ describe('planning des surveillants', () => {
     ...extra,
   });
 
-  it('choisit un surveillant par poste, jour et plage puis enregistre', async () => {
+  it('filtre les surveillants par TECH ELB / TECH CNS, suggère les identifiants et enregistre les matricules', async () => {
     ouvrirSession(CHEF);
     const fetchSimule = api({ 'PUT /api/permanences/surveillants': [200, SURVEILLANTS] });
     const user = userEvent.setup();
@@ -192,9 +192,14 @@ describe('planning des surveillants', () => {
     await screen.findByLabelText('Paul Rabe Lundi 06h-15h00');
     await user.click(screen.getByRole('tab', { name: 'Surveillants' }));
 
-    // le même surveillant peut tenir deux postes à la même plage (nuit)
-    await user.selectOptions(await screen.findByLabelText('Station terrienne Ivato Lundi 18:30-06:00'), 'P005');
-    await user.selectOptions(screen.getByLabelText('Centrale électrique Ivato Lundi 18:30-06:00'), 'P005');
+    expect(screen.getByRole('button', { name: /TECH ELB/ })).toHaveAttribute('aria-pressed', 'true');
+    const premiereCase = await screen.findByLabelText('Station terrienne Ivato Lundi 18:30-06:00');
+    await user.type(premiereCase, 'JR');
+    await user.click(await screen.findByRole('option', { name: /JRA.*Johny Rakoto/ }));
+
+    const deuxiemeCase = screen.getByLabelText('Centrale électrique Ivato Lundi 18:30-06:00');
+    await user.type(deuxiemeCase, 'JRA');
+    await user.click(await screen.findByRole('option', { name: /JRA.*Johny Rakoto/ }));
     await user.click(screen.getByRole('button', { name: 'Enregistrer le planning' }));
 
     expect(await screen.findByRole('status')).toHaveTextContent('Planning enregistré');
@@ -205,22 +210,25 @@ describe('planning des surveillants', () => {
     ]);
   });
 
-  it('désactive un surveillant en congé le jour concerné', async () => {
+  it('propose uniquement les surveillants de TECH CNS et signale les indisponibilités', async () => {
     ouvrirSession(CHEF);
     api();
     const user = userEvent.setup();
     afficher('/permanences');
     await screen.findByLabelText('Paul Rabe Lundi 06h-15h00');
     await user.click(screen.getByRole('tab', { name: 'Surveillants' }));
+    await user.click(screen.getByRole('button', { name: /TECH CNS/ }));
 
-    const mercredi = await screen.findByLabelText('Station terrienne Ivato Mercredi 06:00-12:00');
-    expect(within(mercredi).getByRole('option', { name: 'Nirina Rasoa (indisponible)' })).toBeDisabled();
-    expect(within(mercredi).getByRole('option', { name: 'Johny Rakoto' })).toBeEnabled();
+    const mercredi = screen.getByLabelText('Station terrienne Ivato Mercredi 06:00-12:00');
+    await user.type(mercredi, 'NRA');
+    expect(await screen.findByRole('option', { name: /NRA.*Nirina Rasoa.*Indisponible/ })).toBeDisabled();
+
     const lundi = screen.getByLabelText('Station terrienne Ivato Lundi 06:00-12:00');
-    expect(within(lundi).getByRole('option', { name: 'Nirina Rasoa' })).toBeEnabled();
+    await user.type(lundi, 'NRA');
+    expect(await screen.findByRole('option', { name: /NRA.*Nirina Rasoa/ })).toBeEnabled();
   });
 
-  it('vider une case retire l\'affectation', async () => {
+  it("vider une case retire l’affectation", async () => {
     ouvrirSession(CHEF);
     const fetchSimule = api({
       'GET /api/permanences/surveillants': [200, { ...SURVEILLANTS, affectations: [{ numeroPoste: 1, jour: 'Lundi', plage: '06:00-12:00', matricule: 'P005' }] }],
@@ -231,8 +239,8 @@ describe('planning des surveillants', () => {
     await screen.findByLabelText('Paul Rabe Lundi 06h-15h00');
     await user.click(screen.getByRole('tab', { name: 'Surveillants' }));
     const cellule = await screen.findByLabelText('Station terrienne Ivato Lundi 06:00-12:00');
-    expect(cellule).toHaveValue('P005');
-    await user.selectOptions(cellule, '');
+    expect(cellule).toHaveValue('JRA');
+    await user.clear(cellule);
     await user.click(screen.getByRole('button', { name: 'Enregistrer le planning' }));
     await screen.findByRole('status');
     expect(corpsEnvoye(appelsVers(fetchSimule, 'PUT', '/api/permanences/surveillants')[0]).affectations).toEqual([]);
@@ -260,7 +268,7 @@ describe('export Excel', () => {
     return noms;
   }
 
-  it('télécharge le PDF avec le jeton et nomme le fichier d\'après la semaine', async () => {
+  it('télécharge le fichier Excel avec le jeton et nomme le fichier d\'après la semaine', async () => {
     ouvrirSession(CHEF);
     const fetchSimule = simulerApi({
       'GET /api/unites': UNITES, 'GET /api/permanences/cadres': [200, CADRES],
@@ -313,6 +321,7 @@ describe('mon planning', () => {
     const fetchSimule = simulerApi({ 'GET /api/permanences/mon-planning': [200, {
       semaine: SEMAINE,
       permanences: [{ jour: 'Lundi', date: '2025-12-15', horaire: '06h-15h00', poste: null }],
+      missions: [], conges: [],
     }] });
     afficher('/mon-planning');
 
@@ -327,14 +336,27 @@ describe('mon planning', () => {
     ouvrirSession(SURVEILLANT);
     let appel = 0;
     simulerApi({ 'GET /api/permanences/mon-planning': [200, () => (appel++ === 0
-      ? { semaine: SEMAINE, permanences: [{ jour: 'Mardi', date: '2025-12-16', horaire: '18:30-06:00', poste: 'Station terrienne Ivato' }] }
-      : { semaine: { ...SEMAINE, numeroIso: 52 }, permanences: [] })] });
+      ? { semaine: SEMAINE, permanences: [{ jour: 'Mardi', date: '2025-12-16', horaire: '18:30-06:00', poste: 'Station terrienne Ivato' }], missions: [], conges: [] }
+      : { semaine: { ...SEMAINE, numeroIso: 52 }, permanences: [], missions: [], conges: [] })] });
     const user = userEvent.setup();
     afficher('/mon-planning');
 
     expect(await screen.findByText('Station terrienne Ivato')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Semaine suivante/ }));
     expect(await screen.findByText('Aucune permanence cette semaine')).toBeInTheDocument();
+  });
+
+  it('affiche aussi mes missions et mes congés de la semaine', async () => {
+    ouvrirSession(CADRE);
+    simulerApi({ 'GET /api/permanences/mon-planning': [200, {
+      semaine: SEMAINE, permanences: [],
+      missions: [{ station: 'Antsiranana', dateDebut: '2025-12-10', dateFin: '2025-12-16' }],
+      conges: [{ type: 'Maladie', statut: 'Validé', dateDebut: '2025-12-18', dateFin: '2025-12-18' }],
+    }] });
+    afficher('/mon-planning');
+    expect(await screen.findByText('Antsiranana · du 10/12/2025 au 16/12/2025')).toBeInTheDocument();
+    expect(screen.getByText(/Maladie · 18\/12\/2025/)).toBeInTheDocument();
+    expect(screen.getByText('(Validé)')).toBeInTheDocument();
   });
 
   it('affiche l\'erreur du serveur', async () => {

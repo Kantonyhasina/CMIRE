@@ -73,28 +73,28 @@ describe('protection des pages', () => {
     expect(within(menu).queryByText('Disponibilités')).not.toBeInTheDocument();
   });
 
-    it('un administrateur ne voit que comptes, référentiels et accueil', () => {
-      ouvrirSession(ADMIN);
-      simulerApi({});
-      afficher('/');
-      const menu = screen.getByRole('navigation', { name: 'Navigation principale' });
-      for (const lien of ['Accueil', 'Comptes', 'Référentiels']) {
-        expect(within(menu).getByText(lien)).toBeInTheDocument();
-      }
-      for (const lien of ['Permanences', 'Disponibilités', 'Mon planning']) {
-        expect(within(menu).queryByText(lien)).not.toBeInTheDocument();
-      }
-    });
+  it('un administrateur ne voit que comptes, référentiels et accueil', () => {
+    ouvrirSession(ADMIN);
+    simulerApi({});
+    afficher('/');
+    const menu = screen.getByRole('navigation', { name: 'Navigation principale' });
+    for (const lien of ['Accueil', 'Comptes', 'Référentiels']) {
+      expect(within(menu).getByText(lien)).toBeInTheDocument();
+    }
+    for (const lien of ['Permanences', 'Disponibilités', 'Mon planning']) {
+      expect(within(menu).queryByText(lien)).not.toBeInTheDocument();
+    }
+  });
 
-    it('l\'administrateur est refusé sur les permanences et les disponibilités', () => {
-      ouvrirSession(ADMIN);
-      simulerApi({});
-      const { unmount } = afficher('/permanences');
-      expect(screen.getByRole('heading', { name: 'Accès refusé' })).toBeInTheDocument();
-      unmount();
-      afficher('/disponibilites');
-      expect(screen.getByRole('heading', { name: 'Accès refusé' })).toBeInTheDocument();
-    });
+  it('l\'administrateur est refusé sur les permanences et les disponibilités', () => {
+    ouvrirSession(ADMIN);
+    simulerApi({});
+    const { unmount } = afficher('/permanences');
+    expect(screen.getByRole('heading', { name: 'Accès refusé' })).toBeInTheDocument();
+    unmount();
+    afficher('/disponibilites');
+    expect(screen.getByRole('heading', { name: 'Accès refusé' })).toBeInTheDocument();
+  });
 
   it('referme la session quand l\'API répond 401 (jeton expiré)', async () => {
     ouvrirSession(ADMIN);

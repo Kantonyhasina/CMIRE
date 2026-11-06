@@ -24,11 +24,14 @@ Si le backend n'est pas sur le port 3000 : `VITE_BACKEND_URL=http://localhost:40
 |---|---|---|
 | /connexion | public | S'authentifier |
 | / | connecté | accueil |
-| /permanences | Chef de service, Administrateur | Planifier les permanences (cadres, surveillants), exporter le PDF |
-| /mon-planning | Cadre, Surveillant | Consulter le planning de permanence |
-| /disponibilites | Chef de service, Administrateur | Vérifier la disponibilité du personnel |
-| /comptes | Administrateur | Gérer les comptes du personnel |
-| /referentiels | Administrateur | Gérer les unités et postes, les stations |
+| /comptes, /referentiels | Administrateur | Gérer les comptes, les unités, postes et stations |
+| /permanences | Chef de service | Planifier les permanences (cadres, surveillants), exporter le tableau Excel |
+| /disponibilites | Chef de service | Vérifier la disponibilité du personnel de son unité |
+| /missions | Chef (planifie, affecte) · Cadre, Surveillant (consultent) | Planifier une mission trimestrielle, affecter des intervenants, consulter le planning des missions |
+| /demandes-conges | Chef de service | Valider une demande de congé (pastille du menu = demandes en attente) |
+| /mes-conges | Cadre, Surveillant | Demander un congé |
+| /calendrier-conges | Chef, Cadre, Surveillant | Consulter le calendrier des congés |
+| /mon-planning | Cadre, Surveillant | Consulter son planning (permanences, missions, congés) |
 
 ## Structure
 
@@ -37,7 +40,7 @@ src/
   api.js               appels HTTP (jeton, erreurs, session expirée)
   auth/                AuthContext (session) + RequireAuth (pages protégées par rôle)
   components/Layout    en-tête et menu selon la fonction
-  pages/               une page par écran (Permanences = GrilleCadres + GrilleSurveillants)
+  pages/               une page par écran (Permanences = GrilleCadres + GrilleSurveillants ; Missions = tableau + panneau d'affectation)
   utils/dates.js       dates en texte AAAA-MM-JJ
   __tests__/           tests
 ```

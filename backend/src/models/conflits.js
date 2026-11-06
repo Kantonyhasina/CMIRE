@@ -21,7 +21,8 @@ async function conges(matricules, debut, fin) {
   return rows;
 }
 
-async function missions(matricules, debut, fin) {
+// exclureMission : on ne compte pas la mission en cours d'affectation comme un conflit avec elle-même
+async function missions(matricules, debut, fin, { exclureMission = null } = {}) {
   const { rows } = await db.query(
     `SELECT mi.matricule,
             m.date_debut_mission AS date_debut,
@@ -32,8 +33,9 @@ async function missions(matricules, debut, fin) {
        JOIN station st ON st.numero_station = m.numero_station
       WHERE mi.matricule = ANY($1)
         AND m.date_debut_mission <= $3::date
-        AND m.date_fin_mission   >= $2::date`,
-    [matricules, debut, fin]
+        AND m.date_fin_mission   >= $2::date
+        AND ($4::int IS NULL OR m.numero_mission <> $4::int)`,
+    [matricules, debut, fin, exclureMission]
   );
   return rows;
 }

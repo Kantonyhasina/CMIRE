@@ -1,5 +1,6 @@
 // Entity : Personnel
 const db = require('../config/db');
+const { ROLES } = require('../config/roles');
 
 const COLONNES_PUBLIQUES = `p.matricule, p.nom, p.prenom, p.fonction, p.identifiant,
                             p.numero_telephone, p.numero_unite, u.nom_unite`;
@@ -42,26 +43,57 @@ async function findByUnite(numeroUnite) {
     `SELECT matricule, nom, prenom, fonction
        FROM personnel
       WHERE numero_unite = $1
-        AND fonction <> 'Administrateur'
+        AND fonction <> $2
       ORDER BY nom, prenom`,
-    [numeroUnite]
+    [numeroUnite, ROLES.ADMIN]
   );
   return rows;
 }
 
-// Agents d'une fonction donnée, éventuellement limités à une unité
+// Agents d'une fonction donnée, éventuellement limités à une unité.
 async function findByFonction(fonction, { numeroUnite } = {}) {
   const params = [fonction];
   let filtreUnite = '';
   if (numeroUnite !== undefined) {
     params.push(numeroUnite);
-    filtreUnite = 'AND numero_unite = $2';
+    filtreUnite = 'AND p.numero_unite = $2';
   }
   const { rows } = await db.query(
-    `SELECT matricule, nom, prenom, fonction, numero_telephone AS "numeroTelephone", numero_unite AS "numeroUnite"
-       FROM personnel
-      WHERE fonction = $1 ${filtreUnite}
-      ORDER BY nom, prenom`,
+    `SELECT p.matricule, p.nom, p.prenom, p.fonction, p.identifiant,
+            p.numero_telephone AS "numeroTelephone",
+            p.numero_unite AS "numeroUnite",
+            u.nom_unite AS "nomUnite"
+       FROM personnel p
+       LEFT JOIN unite u ON u.numero_unite = p.numero_unite
+      WHERE p.fonction = $1 ${filtreUnite}
+      ORDER BY p.nom, p.prenom`,
+    params
+  );
+  return rows;
+}
+
+// Cadres et chef de service d'une unité (ou de toutes les unités).
+// Le chef est toujours placé avant les cadres de son unité.
+// Les alias numeroTelephone / numeroUnite conservent le format attendu par le frontend et Excel.
+async function findCadresEtChefs({ numeroUnite } = {}) {
+  const params = [ROLES.CHEF, ROLES.CADRE];
+  let filtreUnite = '';
+
+  if (numeroUnite !== undefined) {
+    params.push(numeroUnite);
+    filtreUnite = 'AND p.numero_unite = $3';
+  }
+
+  const { rows } = await db.query(
+    `SELECT p.matricule, p.nom, p.prenom, p.fonction,
+            p.numero_telephone AS "numeroTelephone",
+            p.numero_unite AS "numeroUnite"
+       FROM personnel p
+      WHERE p.fonction IN ($1, $2)
+        ${filtreUnite}
+      ORDER BY p.numero_unite,
+               CASE WHEN p.fonction = $1 THEN 0 ELSE 1 END,
+               p.nom, p.prenom`,
     params
   );
   return rows;
@@ -117,6 +149,15 @@ async function aDesPermanences(matricule) {
 }
 
 module.exports = {
-  findByIdentifiant, findByMatricule, findAll, findByUnite, findByFonction,
-  create, update, remove, identifiantExiste, aDesPermanences,
+  findByIdentifiant,
+  findByMatricule,
+  findAll,
+  findByUnite,
+  findByFonction,
+  findCadresEtChefs,
+  create,
+  update,
+  remove,
+  identifiantExiste,
+  aDesPermanences,
 };

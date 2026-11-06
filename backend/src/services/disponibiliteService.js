@@ -6,7 +6,7 @@
 // permanence, les autres permanences du même agent ne sont pas un conflit (un cadre peut avoir
 // plusieurs créneaux) -> on appelle avec { ignorer: ['permanence'] }.
 const Conflits = require('../models/conflits');
-const { validerPeriode } = require('../utils/dates');
+const { validerPeriode, formaterPeriode } = require('../utils/dates');
 const { ErreurMetier } = require('../utils/erreurs');
 
 const SOURCES = {
@@ -15,7 +15,7 @@ const SOURCES = {
   permanence: Conflits.permanences,
 };
 
-async function verifierDisponibilite(matricules, dateDebut, dateFin, { ignorer = [] } = {}) {
+async function verifierDisponibilite(matricules, dateDebut, dateFin, { ignorer = [], exclureMission = null } = {}) {
   validerPeriode(dateDebut, dateFin);
 
   const inconnues = ignorer.filter((type) => !SOURCES[type]);
@@ -27,7 +27,7 @@ async function verifierDisponibilite(matricules, dateDebut, dateFin, { ignorer =
   const types = Object.keys(SOURCES).filter((type) => !ignorer.includes(type));
   const lots = await Promise.all(
     types.map(async (type) => {
-      const lignes = await SOURCES[type](matricules, dateDebut, dateFin);
+      const lignes = await SOURCES[type](matricules, dateDebut, dateFin, { exclureMission });
       return lignes.map((l) => ({
         matricule: l.matricule,
         type,
@@ -50,4 +50,9 @@ async function verifierDisponibilite(matricules, dateDebut, dateFin, { ignorer =
   });
 }
 
-module.exports = { verifierDisponibilite };
+// Phrase lisible pour un conflit, ex. « Mission : Antsiranana (du 10/12/2025 au 14/12/2025) »
+function decrireConflit(conflit) {
+  return `${conflit.detail} (${formaterPeriode(conflit.dateDebut, conflit.dateFin)})`;
+}
+
+module.exports = { verifierDisponibilite, decrireConflit };

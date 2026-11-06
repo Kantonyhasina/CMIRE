@@ -7,10 +7,11 @@ export function definirSurSessionExpiree(fonction) {
 }
 
 export class ErreurApi extends Error {
-  constructor(message, status, details = []) {
+  constructor(message, status, details = [], code = null) {
     super(message);
     this.status = status;
     this.details = details; // précisions renvoyées par l'API (ex. agents indisponibles)
+    this.code = code;       // ex. 'CONFIRMATION_REQUISE' : l'action est possible si l'utilisateur confirme
   }
 }
 
@@ -34,7 +35,7 @@ async function exigerSucces(reponse, token) {
   const donnees = await reponse.json().catch(() => null);
   // Un 401 sur une requête authentifiée = jeton expiré, invalide ou compte supprimé
   if (reponse.status === 401 && token) surSessionExpiree();
-  throw new ErreurApi(donnees?.message || `Erreur ${reponse.status}`, reponse.status, donnees?.details);
+  throw new ErreurApi(donnees?.message || `Erreur ${reponse.status}`, reponse.status, donnees?.details, donnees?.code);
 }
 
 export async function appeler(chemin, options = {}) {
