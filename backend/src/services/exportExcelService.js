@@ -203,7 +203,7 @@ function feuilleSurveillants(classeur, donnees) {
     s.matricule,
     (compte.get(s.prenom) > 1 ? `${s.prenom} ${s.nom[0]}.` : s.prenom).toUpperCase(),
   ]));
-  const occupant = new Map(affSurveillants.map((a) => [`${a.numeroPoste}|${a.jour}|${a.plage}`, a.matricule]));
+  const occupant = new Map(affSurveillants.map((a) => [`${a.numeroPoste}|${a.jour}|${a.plage}`, a.designationSpeciale || a.matricule]));
 
   bloc(feuille, 1, 1, 1, DERNIERE, 'TABLEAU DE PERMANENCE - SURVEILLANTS', { gras: true, taille: 16 });
   feuille.getRow(1).height = 28;
@@ -226,8 +226,9 @@ function feuilleSurveillants(classeur, donnees) {
       feuille.getRow(ligne).height = 18;
       cellule(feuille, ligne, 1, `De ${debut} à ${fin}`, { taille: 9, bord: true });
       JOURS.forEach((jour, i) => {
-        const matricule = occupant.get(`${poste.numero_poste}|${jour}|${plage}`);
-        cellule(feuille, ligne, 2 + i, matricule ? affichage.get(matricule) : '', { taille: 9, bord: true });
+        const valeur = occupant.get(`${poste.numero_poste}|${jour}|${plage}`);
+        const libelle = valeur ? (affichage.get(valeur) || valeur) : '';
+        cellule(feuille, ligne, 2 + i, libelle, { taille: 9, bord: true });
       });
       ligne += 1;
     }

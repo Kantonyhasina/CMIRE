@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
 
-// Champ d'autocomplétion : le texte affiché est l'identifiant de connexion,
-// mais la sélection renvoie le matricule attendu par l'API.
+// Autocomplétion d'un surveillant par identifiant, avec deux désignations libres.
+// Les désignations spéciales sont sélectionnées et enregistrées telles quelles :
+// aucune personne n'est recherchée ni attribuée derrière TECH ELB / TECH CNS.
 export default function SaisieIdentifiant({
   id,
   valeur,
   agents,
   onSaisie,
   onChoisir,
+  optionsSpeciales = [],
+  onChoisirSpeciale,
   indisponibilite,
   desactive = false,
 }) {
@@ -15,33 +18,39 @@ export default function SaisieIdentifiant({
   const [indexActif, setIndexActif] = useState(0);
   const identifiantId = id.replace(/[^a-zA-Z0-9_-]/g, '-');
 
-  const suggestions = useMemo(() => {
+  const options = useMemo(() => {
     const recherche = valeur.trim().toLocaleUpperCase();
-    if (!recherche) return [];
+    const personnes = recherche
+      ? agents
+        .filter((agent) => (agent.identifiant || '').toLocaleUpperCase().includes(recherche))
+        .sort((a, b) => (a.identifiant || '').localeCompare(b.identifiant || ''))
+        .map((agent) => ({ type: 'agent', agent }))
+      : [];
+    const speciales = optionsSpeciales
+      .filter((libelle) => !recherche || libelle.toLocaleUpperCase().includes(recherche))
+      .map((libelle) => ({ type: 'special', libelle }));
+    return [...personnes, ...speciales];
+  }, [agents, optionsSpeciales, valeur]);
 
-    return agents
-      .filter((agent) => (agent.identifiant || '').toLocaleUpperCase().includes(recherche))
-      .sort((a, b) => (a.identifiant || '').localeCompare(b.identifiant || ''));
-  }, [agents, valeur]);
-
-  function choisir(agent) {
-    onChoisir(agent.matricule);
+  function choisir(option) {
+    if (option.type === 'agent') onChoisir(option.agent.matricule);
+    else onChoisirSpeciale?.(option.libelle);
     setOuvert(false);
     setIndexActif(0);
   }
 
   function gererClavier(e) {
-    if (e.key === 'ArrowDown' && suggestions.length > 0) {
+    if (e.key === 'ArrowDown' && options.length > 0) {
       e.preventDefault();
       setOuvert(true);
-      setIndexActif((i) => (i + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+      setIndexActif((i) => (i + 1) % options.length);
+    } else if (e.key === 'ArrowUp' && options.length > 0) {
       e.preventDefault();
       setOuvert(true);
-      setIndexActif((i) => (i - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter' && ouvert && suggestions.length > 0) {
+      setIndexActif((i) => (i - 1 + options.length) % options.length);
+    } else if (e.key === 'Enter' && ouvert && options.length > 0) {
       e.preventDefault();
-      choisir(suggestions[indexActif] || suggestions[0]);
+      choisir(options[indexActif] || options[0]);
     } else if (e.key === 'Escape') {
       setOuvert(false);
     }
@@ -56,10 +65,10 @@ export default function SaisieIdentifiant({
         disabled={desactive}
         autoComplete="off"
         spellCheck="false"
-        placeholder="Identifiant…"
+        placeholder="Identifiant / TECH…"
         aria-label={id}
         aria-autocomplete="list"
-        aria-expanded={ouvert && suggestions.length > 0}
+        aria-expanded={ouvert && options.length > 0}
         aria-controls={`${identifiantId}-suggestions`}
         onFocus={() => setOuvert(true)}
         onChange={(e) => {
@@ -68,18 +77,30 @@ export default function SaisieIdentifiant({
           setOuvert(true);
         }}
         onKeyDown={gererClavier}
-        onBlur={() => {
-          // Le délai n'est pas nécessaire : le clic sur une suggestion utilise
-          // onMouseDown avec preventDefault pour conserver le focus.
-          setOuvert(false);
-        }}
+        onBlur={() => setOuvert(false)}
       />
 
-      {ouvert && valeur.trim() !== '' && (
+      {ouvert && options.length > 0 && (
         <div id={`${identifiantId}-suggestions`} className="suggestions-identifiant" role="listbox">
-          {suggestions.length === 0 ? (
-            <div className="suggestion-vide" role="status">Aucun identifiant correspondant</div>
-          ) : suggestions.map((agent, index) => {
+          {options.map((option, index) => {
+            if (option.type === 'special') {
+              return (
+                <button
+                  key={`special-${option.libelle}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === indexActif}
+                  className={`suggestion-speciale ${index === indexActif ? 'suggestion-active' : ''}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => choisir(option)}
+                >
+                  <strong>{option.libelle}</strong>
+                  <small>Désignation libre · aucun technicien attribué par le système</small>
+                </button>
+              );
+            }
+
+            const agent = option.agent;
             const conflit = indisponibilite?.(agent);
             const nom = `${agent.prenom} ${agent.nom}`.trim();
             return (
@@ -92,7 +113,7 @@ export default function SaisieIdentifiant({
                 title={conflit?.detail || undefined}
                 className={index === indexActif ? 'suggestion-active' : ''}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => choisir(agent)}
+                onClick={() => choisir(option)}
               >
                 <strong>{agent.identifiant}</strong>
                 <span>{nom}</span>

@@ -17,10 +17,34 @@ async function findByTrimestre(annee, trimestre) {
   const { rows } = await db.query(
     `${SELECTION}
       WHERE m.annee_mission = $1 AND m.trimestre = $2
-      ORDER BY m.date_debut_mission, m.numero_mission`,
+      ORDER BY m.date_debut_mission, st.nom_station, m.numero_mission`,
     [annee, trimestre]
   );
   return rows;
+}
+
+async function findByAnnee(annee) {
+  const { rows } = await db.query(
+    `${SELECTION}
+      WHERE m.annee_mission = $1
+      ORDER BY m.trimestre, st.nom_station, m.date_debut_mission, m.numero_mission`,
+    [annee]
+  );
+  return rows;
+}
+
+async function existePourStationEtTrimestre(numeroStation, annee, trimestre, saufNumeroMission = null) {
+  const { rowCount } = await db.query(
+    `SELECT 1
+       FROM mission
+      WHERE numero_station = $1
+        AND annee_mission = $2
+        AND trimestre = $3
+        AND ($4::int IS NULL OR numero_mission <> $4::int)
+      LIMIT 1`,
+    [numeroStation, annee, trimestre, saufNumeroMission]
+  );
+  return rowCount > 0;
 }
 
 async function creer({ numeroStation, dateDebut, dateFin, trimestre, annee }) {
@@ -49,20 +73,25 @@ async function supprimer(numeroMission) {
 }
 
 async function intervenantsDe(numerosMissions) {
+  if (numerosMissions.length === 0) return [];
   const { rows } = await db.query(
-    `SELECT mi.numero_mission AS "numeroMission", p.matricule, p.nom, p.prenom, p.fonction,
+    `SELECT mi.numero_mission AS "numeroMission", p.matricule, p.nom, p.prenom,
+            p.fonction, p.identifiant,
             p.numero_unite AS "numeroUnite", u.nom_unite AS "nomUnite"
        FROM mission_intervenant mi
        JOIN personnel p ON p.matricule = mi.matricule
        JOIN unite u ON u.numero_unite = p.numero_unite
       WHERE mi.numero_mission = ANY($1::int[])
-      ORDER BY p.numero_unite, p.nom, p.prenom`,
+        AND p.fonction IN ('Chef de service', 'Cadre de maintenance')
+      ORDER BY p.numero_unite,
+               CASE WHEN p.fonction = 'Chef de service' THEN 0 ELSE 1 END,
+               p.identifiant`,
     [numerosMissions]
   );
   return rows;
 }
 
-// Nombre d'intervenants d'AUTRES unités que celle donnée
+// Nombre d'intervenants d'AUTRES unités que celle donnée.
 async function compterAutresUnites(numeroMission, numeroUnite) {
   const { rows } = await db.query(
     `SELECT count(*)::int AS nombre
@@ -73,7 +102,7 @@ async function compterAutresUnites(numeroMission, numeroUnite) {
   return rows[0].nombre;
 }
 
-// Remplace les intervenants d'UNE unité (ceux des autres unités ne sont pas touchés)
+// Remplace les intervenants d'UNE unité (les autres unités ne sont pas touchées).
 async function remplacerIntervenantsUnite(numeroMission, numeroUnite, matricules, client) {
   await client.query(
     `DELETE FROM mission_intervenant mi
@@ -92,6 +121,7 @@ async function remplacerIntervenantsUnite(numeroMission, numeroUnite, matricules
 }
 
 module.exports = {
-  findById, findByTrimestre, creer, modifier, supprimer,
-  intervenantsDe, compterAutresUnites, remplacerIntervenantsUnite,
+  findById, findByTrimestre, findByAnnee, existePourStationEtTrimestre,
+  creer, modifier, supprimer, intervenantsDe,
+  compterAutresUnites, remplacerIntervenantsUnite,
 };

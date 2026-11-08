@@ -3,38 +3,21 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { formaterDateFr } from '../utils/dates.js';
 import SaisieIdentifiant from '../components/SaisieIdentifiant.jsx';
 
-// Un seul surveillant par poste, jour et plage ; le même surveillant peut
-// tenir deux postes à la même plage. L'API reçoit toujours le matricule.
+// Un seul occupant par poste, jour et plage. L'occupant est soit un surveillant
+// identifié par son matricule, soit une désignation libre TECH ELB / TECH CNS.
+const DESIGNATIONS_SPECIALES = ['TECH ELB', 'TECH CNS'];
 const cle = (numeroPoste, jour, plage) => `${numeroPoste}|${jour}|${plage}`;
 const libellePlage = (plage) => {
   const [debut, fin] = plage.split('-');
   return `De ${debut} à ${fin}`;
 };
 
-const CATEGORIES = [
-  { code: 'ELB', libelle: 'TECH ELB' },
-  { code: 'CNS', libelle: 'TECH CNS' },
-];
-
-function normaliser(texte) {
-  return String(texte || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleUpperCase();
-}
-
-function appartientCategorie(agent, code) {
-  // Les groupes TECH ELB et TECH CNS sont déterminés à partir du libellé
-  // de l'unité de rattachement du personnel.
-  return normaliser(agent.nomUnite).includes(code);
-}
-
 export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   const { api } = useAuth();
   const [donnees, setDonnees] = useState(null);
-  const [selection, setSelection] = useState({}); // cle -> matricule
-  const [saisies, setSaisies] = useState({}); // cle -> texte temporaire saisi
-  const [categorie, setCategorie] = useState('ELB');
+  // cle -> { matricule } OU { designationSpeciale }
+  const [selection, setSelection] = useState({});
+  const [saisies, setSaisies] = useState({});
   const [modifie, setModifie] = useState(false);
   const [erreur, setErreur] = useState('');
   const [details, setDetails] = useState([]);
@@ -44,7 +27,12 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   function appliquer(reponse) {
     setDonnees(reponse);
     setSelection(Object.fromEntries(
-      reponse.affectations.map((a) => [cle(a.numeroPoste, a.jour, a.plage), a.matricule])
+      reponse.affectations.map((a) => [
+        cle(a.numeroPoste, a.jour, a.plage),
+        a.designationSpeciale
+          ? { designationSpeciale: a.designationSpeciale }
+          : { matricule: a.matricule },
+      ])
     ));
     setSaisies({});
     onSemaine(reponse.semaine);
@@ -77,19 +65,22 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
     marquerModifie();
   }
 
-  function choisir(k, matricule) {
+  function appliquerChoix(k, affectation) {
     setSaisies((precedent) => {
       const suivante = { ...precedent };
       delete suivante[k];
       return suivante;
     });
-    setSelection((precedent) => {
-      const suivante = { ...precedent };
-      if (matricule) suivante[k] = matricule;
-      else delete suivante[k];
-      return suivante;
-    });
+    setSelection((precedent) => ({ ...precedent, [k]: affectation }));
     marquerModifie();
+  }
+
+  function choisirAgent(k, matricule) {
+    appliquerChoix(k, matricule ? { matricule } : null);
+  }
+
+  function choisirDesignation(k, designationSpeciale) {
+    appliquerChoix(k, { designationSpeciale });
   }
 
   async function enregistrer() {
@@ -98,9 +89,15 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
     setMessage('');
     setEnvoi(true);
     try {
-      const affectations = Object.entries(selection).map(([k, matricule]) => {
+      const affectations = Object.entries(selection).map(([k, valeur]) => {
         const [numeroPoste, jour, plage] = k.split('|');
-        return { numeroPoste: Number(numeroPoste), jour, plage, matricule };
+        return {
+          numeroPoste: Number(numeroPoste),
+          jour,
+          plage,
+          ...(valeur.matricule ? { matricule: valeur.matricule } : {}),
+          ...(valeur.designationSpeciale ? { designationSpeciale: valeur.designationSpeciale } : {}),
+        };
       });
       appliquer(await api('/api/permanences/surveillants', {
         methode: 'PUT',
@@ -117,11 +114,6 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
     }
   }
 
-  const agentsCategorie = useMemo(
-    () => (donnees?.agents || []).filter((agent) => appartientCategorie(agent, categorie)),
-    [donnees, categorie]
-  );
-
   const agentsParMatricule = useMemo(
     () => new Map((donnees?.agents || []).map((agent) => [agent.matricule, agent])),
     [donnees]
@@ -132,8 +124,10 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
 
   function valeurCellule(k) {
     if (Object.prototype.hasOwnProperty.call(saisies, k)) return saisies[k];
-    const matricule = selection[k];
-    return matricule ? (agentsParMatricule.get(matricule)?.identifiant || '') : '';
+    const affectation = selection[k];
+    if (!affectation) return '';
+    if (affectation.designationSpeciale) return affectation.designationSpeciale;
+    return agentsParMatricule.get(affectation.matricule)?.identifiant || '';
   }
 
   if (!donnees) {
@@ -148,29 +142,10 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
       )}
       {message && <p role="status" className="alerte succes">{message}</p>}
 
-      <div className="choix-categorie-surveillance" role="group" aria-label="Catégorie de surveillance">
-        {CATEGORIES.map((item) => {
-          const nombre = donnees.agents.filter((agent) => appartientCategorie(agent, item.code)).length;
-          return (
-            <button
-              key={item.code}
-              type="button"
-              className={categorie === item.code ? '' : 'secondaire'}
-              aria-pressed={categorie === item.code}
-              onClick={() => setCategorie(item.code)}
-            >
-              {item.libelle} <span className="compteur-agents">({nombre})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {agentsCategorie.length === 0 && (
-        <p className="alerte attention">
-          Aucun personnel ayant la fonction « Surveillant » n'est rattaché à l'unité {categorie}.
-          Vérifie l'unité attribuée à ces personnels dans la gestion des comptes.
-        </p>
-      )}
+      <p className="sous-titre aide-designations">
+        Saisissez l'identifiant d'un surveillant ou choisissez directement TECH ELB / TECH CNS.
+        Ces deux désignations sont enregistrées telles quelles : aucun technicien n'est sélectionné par le système.
+      </p>
 
       {donnees.postes.length === 0 ? (
         <p className="vide">Aucun poste de surveillance : ajoutez-en dans « Référentiels ».</p>
@@ -195,10 +170,10 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
                   donnees={donnees}
                   selection={selection}
                   valeurCellule={valeurCellule}
-                  agentsCategorie={agentsCategorie}
                   bloque={bloque}
                   saisir={saisir}
-                  choisir={choisir}
+                  choisirAgent={choisirAgent}
+                  choisirDesignation={choisirDesignation}
                 />
               ))}
             </tbody>
@@ -216,16 +191,7 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   );
 }
 
-function PosteLignes({
-  poste,
-  donnees,
-  selection,
-  valeurCellule,
-  agentsCategorie,
-  bloque,
-  saisir,
-  choisir,
-}) {
+function PosteLignes({ poste, donnees, valeurCellule, bloque, saisir, choisirAgent, choisirDesignation }) {
   return (
     <>
       <tr className="bandeau">
@@ -236,17 +202,18 @@ function PosteLignes({
           <th scope="row" className="agent">{libellePlage(plage)}</th>
           {donnees.jours.map((j) => {
             const k = cle(poste.numero_poste, j.nom, plage);
-            const agentsDisponibles = agentsCategorie;
             const id = `${poste.nom_poste} ${j.nom} ${plage}`;
             return (
               <td key={j.nom} className="case-select">
                 <SaisieIdentifiant
                   id={id}
                   valeur={valeurCellule(k)}
-                  agents={agentsDisponibles}
+                  agents={donnees.agents}
+                  optionsSpeciales={DESIGNATIONS_SPECIALES}
                   indisponibilite={(agent) => bloque(agent, j.date)}
                   onSaisie={(valeur) => saisir(k, valeur)}
-                  onChoisir={(matricule) => choisir(k, matricule)}
+                  onChoisir={(matricule) => choisirAgent(k, matricule)}
+                  onChoisirSpeciale={(designation) => choisirDesignation(k, designation)}
                 />
               </td>
             );

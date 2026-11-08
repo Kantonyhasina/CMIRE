@@ -21,7 +21,7 @@ const reponse = (status, corps) => ({
 export function simulerApi(routes) {
   const fetchSimule = vi.fn(async (url, options = {}) => {
     const cle = `${options.method || 'GET'} ${url.split('?')[0]}`;
-    const [status, corps] = routes[cle] ?? [404, { message: `non simulé : ${cle}` }];
+    const [status, corps] = routes[cle] ?? (cle === 'GET /api/conges/personnels-unite' ? [200, []] : [404, { message: `non simulé : ${cle}` }]);
     return reponse(status, typeof corps === 'function' ? corps(options, url) : corps);
   });
   globalThis.fetch = fetchSimule;

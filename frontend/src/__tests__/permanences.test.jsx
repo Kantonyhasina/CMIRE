@@ -184,48 +184,56 @@ describe('planning des surveillants', () => {
     ...extra,
   });
 
-  it('filtre les surveillants par TECH ELB / TECH CNS, suggère les identifiants et enregistre les matricules', async () => {
+  it('permet de choisir TECH ELB et TECH CNS directement dans les cases et enregistre les libellés', async () => {
     ouvrirSession(CHEF);
-    const fetchSimule = api({ 'PUT /api/permanences/surveillants': [200, SURVEILLANTS] });
+    const fetchSimule = api({
+      'PUT /api/permanences/surveillants': [200, {
+        ...SURVEILLANTS,
+        affectations: [
+          { numeroPoste: 1, jour: 'Lundi', plage: '18:30-06:00', designationSpeciale: 'TECH ELB', matricule: null },
+          { numeroPoste: 2, jour: 'Lundi', plage: '18:30-06:00', designationSpeciale: 'TECH CNS', matricule: null },
+        ],
+      }],
+    });
     const user = userEvent.setup();
     afficher('/permanences');
     await screen.findByLabelText('Paul Rabe Lundi 06h-15h00');
     await user.click(screen.getByRole('tab', { name: 'Surveillants' }));
 
-    expect(screen.getByRole('button', { name: /TECH ELB/ })).toHaveAttribute('aria-pressed', 'true');
     const premiereCase = await screen.findByLabelText('Station terrienne Ivato Lundi 18:30-06:00');
-    await user.type(premiereCase, 'JR');
-    await user.click(await screen.findByRole('option', { name: /JRA.*Johny Rakoto/ }));
+    await user.click(premiereCase);
+    await user.click(await screen.findByRole('option', { name: /TECH ELB/ }));
 
     const deuxiemeCase = screen.getByLabelText('Centrale électrique Ivato Lundi 18:30-06:00');
-    await user.type(deuxiemeCase, 'JRA');
-    await user.click(await screen.findByRole('option', { name: /JRA.*Johny Rakoto/ }));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le planning' }));
+    await user.click(deuxiemeCase);
+    await user.click(await screen.findByRole('option', { name: /TECH CNS/ }));
+    expect(premiereCase).toHaveValue('TECH ELB');
+    expect(deuxiemeCase).toHaveValue('TECH CNS');
 
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le planning' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Planning enregistré');
-    const corps = corpsEnvoye(appelsVers(fetchSimule, 'PUT', '/api/permanences/surveillants')[0]);
-    expect(corps.affectations).toEqual([
-      { numeroPoste: 1, jour: 'Lundi', plage: '18:30-06:00', matricule: 'P005' },
-      { numeroPoste: 2, jour: 'Lundi', plage: '18:30-06:00', matricule: 'P005' },
+    const affectations = corpsEnvoye(appelsVers(fetchSimule, 'PUT', '/api/permanences/surveillants')[0]).affectations;
+    expect(affectations).toEqual([
+      { numeroPoste: 1, jour: 'Lundi', plage: '18:30-06:00', designationSpeciale: 'TECH ELB' },
+      { numeroPoste: 2, jour: 'Lundi', plage: '18:30-06:00', designationSpeciale: 'TECH CNS' },
     ]);
   });
 
-  it('propose uniquement les surveillants de TECH CNS et signale les indisponibilités', async () => {
+  it('propose les identifiants des surveillants sans filtrer par unité et signale les indisponibilités', async () => {
     ouvrirSession(CHEF);
     api();
     const user = userEvent.setup();
     afficher('/permanences');
     await screen.findByLabelText('Paul Rabe Lundi 06h-15h00');
     await user.click(screen.getByRole('tab', { name: 'Surveillants' }));
-    await user.click(screen.getByRole('button', { name: /TECH CNS/ }));
 
     const mercredi = screen.getByLabelText('Station terrienne Ivato Mercredi 06:00-12:00');
     await user.type(mercredi, 'NRA');
     expect(await screen.findByRole('option', { name: /NRA.*Nirina Rasoa.*Indisponible/ })).toBeDisabled();
 
     const lundi = screen.getByLabelText('Station terrienne Ivato Lundi 06:00-12:00');
-    await user.type(lundi, 'NRA');
-    expect(await screen.findByRole('option', { name: /NRA.*Nirina Rasoa/ })).toBeEnabled();
+    await user.type(lundi, 'JRA');
+    expect(await screen.findByRole('option', { name: /JRA.*Johny Rakoto/ })).toBeEnabled();
   });
 
   it("vider une case retire l’affectation", async () => {

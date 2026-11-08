@@ -40,7 +40,7 @@ async function findAll() {
 // L'administrateur (super-utilisateur) n'est jamais planifié : il est exclu.
 async function findByUnite(numeroUnite) {
   const { rows } = await db.query(
-    `SELECT matricule, nom, prenom, fonction
+    `SELECT matricule, nom, prenom, fonction, identifiant, numero_unite AS "numeroUnite"
        FROM personnel
       WHERE numero_unite = $1
         AND fonction <> $2
@@ -85,10 +85,11 @@ async function findCadresEtChefs({ numeroUnite } = {}) {
   }
 
   const { rows } = await db.query(
-    `SELECT p.matricule, p.nom, p.prenom, p.fonction,
+    `SELECT p.matricule, p.nom, p.prenom, p.fonction, p.identifiant,
             p.numero_telephone AS "numeroTelephone",
-            p.numero_unite AS "numeroUnite"
+            p.numero_unite AS "numeroUnite", u.nom_unite AS "nomUnite"
        FROM personnel p
+       JOIN unite u ON u.numero_unite = p.numero_unite
       WHERE p.fonction IN ($1, $2)
         ${filtreUnite}
       ORDER BY p.numero_unite,

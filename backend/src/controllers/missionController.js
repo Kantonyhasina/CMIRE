@@ -1,5 +1,6 @@
 // Control : MissionController
 const missionService = require('../services/missionService');
+const missionExportExcelService = require('../services/missionExportExcelService');
 const { exigerDate } = require('../utils/dates');
 const { ErreurMetier } = require('../utils/erreurs');
 
@@ -27,6 +28,20 @@ const lister = action(async (req, res) => {
   res.json(await missionService.lister({ annee: Number(req.query.annee), trimestre: Number(req.query.trimestre) }));
 });
 
+const exporterAnnuel = action(async (req, res) => {
+  const annee = Number(req.query.annee);
+  if (!Number.isInteger(annee) || annee < 2000 || annee > 2100) {
+    throw new ErreurMetier('Année invalide', 400);
+  }
+  const { buffer, nomFichier } = await missionExportExcelService.generer(annee);
+  res.set({
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Content-Disposition': `attachment; filename="${nomFichier}"`,
+    'Content-Length': buffer.length,
+  });
+  res.send(buffer);
+});
+
 const creer = action(async (req, res) => {
   res.status(201).json(await missionService.creer(lireCorps(req.body)));
 });
@@ -48,4 +63,4 @@ const affecter = action(async (req, res) => {
   res.json(await missionService.affecter(lireId(req.params.id), { matricules: req.body.matricules }, req.utilisateur));
 });
 
-module.exports = { lister, creer, modifier, supprimer, candidats, affecter };
+module.exports = { lister, exporterAnnuel, creer, modifier, supprimer, candidats, affecter };

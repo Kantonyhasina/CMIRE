@@ -66,7 +66,7 @@ export default function CalendrierConges() {
                         <td key={j} title={libelle} aria-label={libelle}
                             className={[
                               [0, 6].includes(jourSemaine(j)) ? 'weekend' : '',
-                              conge ? (conge.statut === 'Validé' ? 'conge-valide' : 'conge-attente') : '',
+                              conge ? (conge.statut === 'En pause' ? 'conge-pause' : conge.statut === 'Repris' ? 'conge-repris' : conge.statut === 'Validé' ? 'conge-valide' : 'conge-attente') : '',
                             ].join(' ').trim()} />
                       );
                     })}
@@ -79,6 +79,8 @@ export default function CalendrierConges() {
           <p className="legende">
             <span className="echantillon conge-valide" /> Congé validé
             <span className="echantillon conge-attente" /> Demande en attente (visible du chef de service uniquement)
+            <span className="echantillon conge-pause" /> Personnel en pause
+            <span className="echantillon conge-repris" /> Historique de pause
           </p>
         </>
       )}

@@ -167,3 +167,61 @@ td.vide { color: var(--gris); text-align: center; }
 .suggestions-identifiant button span { flex: 1; }
 .suggestions-identifiant button small { color: var(--rouge); white-space: nowrap; }
 .suggestion-vide { padding: .55rem .65rem; color: var(--gris); font-size: .8rem; }
+
+/* ----- Planning annuel des missions ----- */
+.barre-planning-annuel { align-items: end; }
+.actions-planning-annuel { display: flex; flex-wrap: wrap; gap: .55rem; }
+.planning-annuel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.tableau-trimestre { min-width: 0; }
+.tableau-trimestre h2 { margin-top: 0; }
+.tableau-missions-annuel { min-width: 760px; width: 100%; font-size: .78rem; }
+.tableau-missions-annuel th,
+.tableau-missions-annuel td { padding: .38rem .4rem; border: 1px solid #e5e9f0; text-align: center; }
+.tableau-missions-annuel th { background: #eef2f7; white-space: nowrap; }
+.tableau-missions-annuel td:first-child { text-align: left; font-weight: 600; white-space: nowrap; }
+.tableau-missions-annuel td:nth-child(2) { white-space: nowrap; }
+.tableau-missions-annuel .actions-mission { white-space: nowrap; }
+.tableau-missions-annuel .actions-mission button { padding: .3rem .45rem; margin: .1rem; font-size: .72rem; }
+.tableau-missions-annuel tr.mission-demarree td { background: #d1fae5; }
+.mission-verrouillee-label {
+  display: inline-block;
+  padding: .2rem .4rem;
+  border-radius: 4px;
+  background: #a7f3d0;
+  color: #065f46;
+  font-size: .75rem;
+  font-weight: 700;
+}
+.aide-designations { margin: .6rem 0 1rem; }
+.suggestions-identifiant button.suggestion-speciale { flex-direction: column; align-items: flex-start; gap: .12rem; }
+.suggestions-identifiant button.suggestion-speciale small { color: #64748b; white-space: normal; }
+.panneau-intervenants-mission { margin-top: 1rem; }
+.champ-intervenant-mission { max-width: 520px; margin: .75rem 0 1.1rem; }
+.champ-intervenant-mission .saisie-identifiant { max-width: 460px; }
+.selection-intervenant { margin: .5rem 0; }
+.liste-candidats-mission { margin-top: .75rem; }
+.liste-candidats-mission h3 { margin-bottom: .4rem; }
+.liste-candidats-mission .agents-liste { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.liste-candidats-mission .agents-liste li { font-size: .85rem; }
+
+@media (max-width: 1050px) {
+  .planning-annuel { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .barre-planning-annuel { align-items: stretch; flex-direction: column; }
+  .actions-planning-annuel { width: 100%; }
+  .actions-planning-annuel button { flex: 1; }
+}
+
+
+/* Étape 4 — indisponibilité maladie / hospitalisation sans durée connue */
+.conge-pause, .echantillon.conge-pause { background: #f6c66b; }
+.ligne-pause { background: #fff8e8; }
+.ligne-pause td { border-color: #f1dfb8; }
+
+.conge-repris, .echantillon.conge-repris { background: #94a3b8; }

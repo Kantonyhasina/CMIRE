@@ -17,6 +17,7 @@ const { lundiDeLaSemaine, ajouterJours, formaterDateFr } = require('../utils/dat
 const { ErreurMetier } = require('../utils/erreurs');
 
 const MAX_AFFECTATIONS = 1000;
+const DESIGNATIONS_SURVEILLANT = new Set(['TECH ELB', 'TECH CNS']);
 
 const dateDuJour = (lundi, jour) => ajouterJours(lundi, JOURS.indexOf(jour));
 const joursDeLaSemaine = (lundi) => JOURS.map((nom, i) => ({ nom, date: ajouterJours(lundi, i) }));
@@ -74,7 +75,7 @@ async function avecIndisponibilites(agents, semaine) {
 
 // Refuse le planning si un agent est affecté un jour où il est en congé ou en mission.
 async function exigerSansConflit(affectations, semaine, agentsParMatricule) {
-  const matricules = [...new Set(affectations.map((a) => a.matricule))];
+  const matricules = [...new Set(affectations.map((a) => a.matricule).filter(Boolean))];
   if (matricules.length === 0) return;
 
   const resultats = await disponibiliteService.verifierDisponibilite(
@@ -197,21 +198,28 @@ async function enregistrerSurveillants({ date, affectations }) {
   const numerosPostes = new Set(postes.map((p) => p.numero_poste));
   const parMatricule = new Map(surveillants.map((s) => [s.matricule, s]));
 
-  // Un même surveillant peut tenir deux postes à la même plage (ex. la nuit) : seul le créneau
-  // d'un poste est exclusif (un seul surveillant par poste, jour et plage).
+  // Une case contient soit un surveillant réel, soit une des deux désignations libres.
+  // TECH ELB / TECH CNS ne sont volontairement liés à aucun matricule.
   const creneauxPris = new Set();
   for (const a of affectations) {
-    if (!a || !parMatricule.has(a.matricule)) {
-      throw new ErreurMetier(`Agent inconnu ou n'est pas surveillant : ${a?.matricule}`, 400);
+    if (!a) throw new ErreurMetier('Affectation invalide', 400);
+    const aUnAgent = Boolean(a.matricule);
+    const aUneDesignation = Boolean(a.designationSpeciale);
+    if (aUnAgent === aUneDesignation) {
+      throw new ErreurMetier('Une affectation doit contenir soit un surveillant, soit TECH ELB / TECH CNS', 400);
+    }
+    if (aUnAgent && !parMatricule.has(a.matricule)) {
+      throw new ErreurMetier(`Agent inconnu ou n'est pas surveillant : ${a.matricule}`, 400);
+    }
+    if (aUneDesignation && !DESIGNATIONS_SURVEILLANT.has(a.designationSpeciale)) {
+      throw new ErreurMetier('Désignation spéciale invalide : ' + a.designationSpeciale, 400);
     }
     if (!numerosPostes.has(a.numeroPoste)) throw new ErreurMetier(`Poste inconnu : ${a.numeroPoste}`, 400);
     if (!JOURS.includes(a.jour)) throw new ErreurMetier(`Jour invalide : ${a.jour}`, 400);
     if (!PLAGES_SURVEILLANT.includes(a.plage)) throw new ErreurMetier(`Plage horaire invalide : ${a.plage}`, 400);
 
     const cle = `${a.numeroPoste}|${a.jour}|${a.plage}`;
-    if (creneauxPris.has(cle)) {
-      throw new ErreurMetier('Deux surveillants sur le même poste et la même plage', 400);
-    }
+    if (creneauxPris.has(cle)) throw new ErreurMetier('Deux surveillants sur le même poste et la même plage', 400);
     creneauxPris.add(cle);
   }
 

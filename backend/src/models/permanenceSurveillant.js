@@ -3,7 +3,9 @@ const db = require('../config/db');
 
 async function findBySemaine(numeroSemaine) {
   const { rows } = await db.query(
-    `SELECT numero_poste AS "numeroPoste", jour_perms AS jour, plage_horaire AS plage, matricule
+    `SELECT numero_poste AS "numeroPoste", jour_perms AS jour,
+            plage_horaire AS plage, matricule,
+            designation_speciale AS "designationSpeciale"
        FROM permanence_surveillant
       WHERE numero_semaine = $1
       ORDER BY id_perms`,
@@ -23,20 +25,25 @@ async function findByAgent(numeroSemaine, matricule) {
   return rows;
 }
 
-// Remplace tout le tableau des surveillants de la semaine (tableau unique pour tous les postes)
+// Remplace tout le tableau des surveillants de la semaine.
+// Une case contient soit un matricule, soit un libellé spécial (TECH ELB / TECH CNS).
 async function remplacer(numeroSemaine, affectations, client) {
   await client.query('DELETE FROM permanence_surveillant WHERE numero_semaine = $1', [numeroSemaine]);
   if (affectations.length === 0) return;
+
   await client.query(
-    `INSERT INTO permanence_surveillant (numero_semaine, numero_poste, jour_perms, plage_horaire, matricule)
-     SELECT $1::int, t.poste, t.jour, t.plage, t.matricule
-       FROM unnest($2::int[], $3::text[], $4::text[], $5::text[]) AS t(poste, jour, plage, matricule)`,
+    `INSERT INTO permanence_surveillant
+       (numero_semaine, numero_poste, jour_perms, plage_horaire, matricule, designation_speciale)
+     SELECT $1::int, t.poste, t.jour, t.plage, t.matricule, t.designation
+       FROM unnest($2::int[], $3::text[], $4::text[], $5::text[], $6::text[])
+         AS t(poste, jour, plage, matricule, designation)`,
     [
       numeroSemaine,
       affectations.map((a) => a.numeroPoste),
       affectations.map((a) => a.jour),
       affectations.map((a) => a.plage),
-      affectations.map((a) => a.matricule),
+      affectations.map((a) => a.matricule || null),
+      affectations.map((a) => a.designationSpeciale || null),
     ]
   );
 }

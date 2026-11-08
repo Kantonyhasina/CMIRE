@@ -1,27 +1,27 @@
 // Entity (lecture) : ce qui peut rendre un personnel indisponible sur une période.
-// Chaque fonction reçoit une liste de matricules et une période [debut, fin] (dates incluses).
 const db = require('../config/db');
-
 const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
-// Congés VALIDÉS uniquement : une demande « En attente » ou « Refusé » ne bloque rien.
+// Les congés validés et pauses actives bloquent les affectations. Une pause sans dates
+// reste active jusqu'à la date de reprise (qui est le premier jour de retour).
 async function conges(matricules, debut, fin) {
   const { rows } = await db.query(
     `SELECT matricule,
-            date_debut_conge AS date_debut,
-            date_fin_conge   AS date_fin,
+            GREATEST(COALESCE(date_debut_conge, (created_at AT TIME ZONE 'Indian/Antananarivo')::date), $2::date) AS date_debut,
+            COALESCE(date_fin_conge,
+                     CASE WHEN date_reprise IS NOT NULL THEN date_reprise - 1 ELSE $3::date END) AS date_fin,
             'Congé : ' || type AS detail
        FROM conge
       WHERE matricule = ANY($1)
-        AND statut = 'Validé'
-        AND date_debut_conge <= $3::date
-        AND date_fin_conge   >= $2::date`,
+        AND statut IN ('Validé', 'En pause')
+        AND COALESCE(date_debut_conge, (created_at AT TIME ZONE 'Indian/Antananarivo')::date) <= $3::date
+        AND (date_fin_conge IS NULL OR date_fin_conge >= $2::date)
+        AND (date_reprise IS NULL OR date_reprise > $2::date)`,
     [matricules, debut, fin]
   );
   return rows;
 }
 
-// exclureMission : on ne compte pas la mission en cours d'affectation comme un conflit avec elle-même
 async function missions(matricules, debut, fin, { exclureMission = null } = {}) {
   const { rows } = await db.query(
     `SELECT mi.matricule,
@@ -40,7 +40,6 @@ async function missions(matricules, debut, fin, { exclureMission = null } = {}) 
   return rows;
 }
 
-// La date exacte d'une permanence = début de la semaine + rang du jour (Lundi = +0 ... Dimanche = +6)
 async function permanences(matricules, debut, fin) {
   const { rows } = await db.query(
     `SELECT matricule, date_perm AS date_debut, date_perm AS date_fin, detail

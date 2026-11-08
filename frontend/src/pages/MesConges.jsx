@@ -106,12 +106,12 @@ export default function MesConges() {
             <tbody>
               {demandes.map((d) => (
                 <tr key={d.id}>
-                  <td>{formaterPeriode(d.dateDebut, d.dateFin)}</td>
+                  <td>{d.statut === 'En pause' && !d.dateDebut && !d.dateFin ? 'Sans durée connue — EN PAUSE' : formaterPeriode(d.dateDebut, d.dateFin)}</td>
                   <td>{d.type}</td>
                   <td><span className={`badge statut-${d.statut === 'Validé' ? 'ok' : d.statut === 'Refusé' ? 'ko' : 'attente'}`}>{d.statut}</span></td>
                   <td className="actions">
                     {d.statut === 'En attente' && (
-                      <button type="button" className="secondaire" aria-label={`Annuler la demande ${formaterPeriode(d.dateDebut, d.dateFin)}`}
+                      <button type="button" className="secondaire" aria-label={`Annuler la demande ${d.statut === 'En pause' && !d.dateDebut && !d.dateFin ? 'Sans durée connue — EN PAUSE' : formaterPeriode(d.dateDebut, d.dateFin)}`}
                               onClick={() => annuler(d)}>Annuler</button>
                     )}
                   </td>

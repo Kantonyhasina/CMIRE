@@ -17,6 +17,10 @@ const action = (travail) => async (req, res, next) => {
   }
 };
 
+const personnelsUnite = action(async (req, res) => {
+  res.json(await congeService.personnelsUnite(req.utilisateur));
+});
+
 const mesDemandes = action(async (req, res) => {
   res.json(await congeService.mesDemandes(req.utilisateur));
 });
@@ -40,6 +44,17 @@ const nombreEnAttente = action(async (req, res) => {
   res.json(await congeService.nombreEnAttente(req.utilisateur));
 });
 
+const creerDirectement = action(async (req, res) => {
+  const { matricule, type, dateDebut, dateFin, sansDureeConnue } = req.body;
+  res.status(201).json(await congeService.creerDirectement(
+    { matricule, type, dateDebut, dateFin, sansDureeConnue }, req.utilisateur));
+});
+
+const reprendre = action(async (req, res) => {
+  res.json(await congeService.reprendre(
+    lireId(req.params.id), { dateReprise: exigerDate(req.body.dateReprise) }, req.utilisateur));
+});
+
 const decider = action(async (req, res) => {
   res.json(await congeService.decider(
     lireId(req.params.id), { decision: req.body.decision, confirmer: req.body.confirmer }, req.utilisateur));
@@ -50,4 +65,4 @@ const calendrier = action(async (req, res) => {
     { dateDebut: exigerDate(req.query.dateDebut), dateFin: exigerDate(req.query.dateFin) }, req.utilisateur));
 });
 
-module.exports = { mesDemandes, demander, annuler, lister, nombreEnAttente, decider, calendrier };
+module.exports = { personnelsUnite, mesDemandes, demander, annuler, creerDirectement, reprendre, lister, nombreEnAttente, decider, calendrier };
