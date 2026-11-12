@@ -8,9 +8,11 @@ const disponibiliteRoutes = require('./routes/disponibiliteRoutes');
 const permanenceRoutes = require('./routes/permanenceRoutes');
 const missionRoutes = require('./routes/missionRoutes');
 const congeRoutes = require('./routes/congeRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const unite = require('./models/unite');
 const poste = require('./models/poste');
 const station = require('./models/station');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 
@@ -32,6 +34,8 @@ app.use('/api/disponibilites', disponibiliteRoutes);
 app.use('/api/permanences', permanenceRoutes);
 app.use('/api/missions', missionRoutes);
 app.use('/api/conges', congeRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Route introuvable' }));
 

@@ -49,6 +49,7 @@ export default function App() {
           element={<RequireAuth roles={[ROLES.CHEF]}><Disponibilites /></RequireAuth>}
         />
         <Route path="comptes" element={<RequireAuth roles={[ROLES.ADMIN]}><Comptes /></RequireAuth>} />
+        <Route path="comptes/desactives" element={<RequireAuth roles={[ROLES.ADMIN]}><Comptes afficherDesactives /></RequireAuth>} />
         <Route path="referentiels" element={<RequireAuth roles={[ROLES.ADMIN]}><Referentiels /></RequireAuth>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

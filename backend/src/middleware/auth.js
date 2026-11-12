@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken');
 const Personnel = require('../models/personnel');
 
 // Précondition globale : toute action exige une session authentifiée.
-// La fonction et l'unité sont relues en base à chaque requête : un compte supprimé ou dont la
-// fonction a changé perd (ou change) ses droits immédiatement, sans attendre l'expiration du jeton.
+// La fonction, l'unité et le statut actif sont relus en base à chaque requête : un compte désactivé
+// perd immédiatement ses accès, sans attendre l'expiration du jeton.
 async function verifierToken(req, res, next) {
   const [type, token] = (req.headers.authorization || '').split(' ');
   if (type !== 'Bearer' || !token) {
@@ -19,8 +19,8 @@ async function verifierToken(req, res, next) {
 
   try {
     const personnel = await Personnel.findByMatricule(contenu.matricule);
-    if (!personnel) {
-      return res.status(401).json({ message: 'Compte introuvable ou supprimé' });
+    if (!personnel || !personnel.actif) {
+      return res.status(401).json({ message: 'Compte désactivé ou introuvable' });
     }
     req.utilisateur = {
       matricule: personnel.matricule,

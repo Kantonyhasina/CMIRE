@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { formaterDateFr } from '../utils/dates.js';
 import SaisieIdentifiant from '../components/SaisieIdentifiant.jsx';
+import { useToasts, ToastsContainer } from '../components/Toasts.jsx';
 
-// Un seul occupant par poste, jour et plage. L'occupant est soit un surveillant
-// identifié par son matricule, soit une désignation libre TECH ELB / TECH CNS.
 const DESIGNATIONS_SPECIALES = ['TECH ELB', 'TECH CNS'];
 const cle = (numeroPoste, jour, plage) => `${numeroPoste}|${jour}|${plage}`;
 const libellePlage = (plage) => {
@@ -14,14 +13,13 @@ const libellePlage = (plage) => {
 
 export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   const { api } = useAuth();
+  const { toasts, ajouterToast } = useToasts();
+  
   const [donnees, setDonnees] = useState(null);
-  // cle -> { matricule } OU { designationSpeciale }
   const [selection, setSelection] = useState({});
   const [saisies, setSaisies] = useState({});
   const [modifie, setModifie] = useState(false);
-  const [erreur, setErreur] = useState('');
   const [details, setDetails] = useState([]);
-  const [message, setMessage] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
   function appliquer(reponse) {
@@ -41,10 +39,9 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   useEffect(() => {
     let annule = false;
     setDonnees(null);
-    setErreur('');
     api(`/api/permanences/surveillants?${new URLSearchParams({ date })}`)
       .then((reponse) => { if (!annule) appliquer(reponse); })
-      .catch((e) => { if (!annule) setErreur(e.message); });
+      .catch((e) => { if (!annule) ajouterToast(e.message, 'erreur'); });
     return () => { annule = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, date]);
@@ -52,7 +49,6 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   function marquerModifie() {
     setModifie(true);
     onModifie(true);
-    setMessage('');
   }
 
   function saisir(k, valeur) {
@@ -84,9 +80,7 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   }
 
   async function enregistrer() {
-    setErreur('');
     setDetails([]);
-    setMessage('');
     setEnvoi(true);
     try {
       const affectations = Object.entries(selection).map(([k, valeur]) => {
@@ -105,9 +99,9 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
       }));
       setModifie(false);
       onModifie(false);
-      setMessage('Planning enregistré');
+      ajouterToast('Planning enregistré avec succès', 'succes');
     } catch (e) {
-      setErreur(e.message);
+      ajouterToast(e.message, 'erreur');
       setDetails(e.details || []);
     } finally {
       setEnvoi(false);
@@ -131,16 +125,16 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
   }
 
   if (!donnees) {
-    return erreur ? <p role="alert" className="alerte erreur">{erreur}</p> : <p>Chargement…</p>;
+    return <p>Chargement…</p>;
   }
 
   return (
     <>
-      {erreur && <p role="alert" className="alerte erreur">{erreur}</p>}
+      <ToastsContainer toasts={toasts} />
+
       {details.length > 0 && (
         <ul className="alerte erreur details">{details.map((d) => <li key={d}>{d}</li>)}</ul>
       )}
-      {message && <p role="status" className="alerte succes">{message}</p>}
 
       <p className="sous-titre aide-designations">
         Saisissez l'identifiant d'un surveillant ou choisissez directement TECH ELB / TECH CNS.

@@ -109,19 +109,28 @@ async function modifierCompte(req, res, next) {
   }
 }
 
-async function supprimerCompte(req, res, next) {
+async function changerActivationCompte(req, res, next) {
   try {
     const { matricule } = req.params;
-    if (matricule === req.utilisateur.matricule) {
-      throw new ErreurMetier('Vous ne pouvez pas supprimer votre propre compte', 400);
+    const { actif } = req.body;
+    if (typeof actif !== 'boolean') {
+      throw new ErreurMetier('Le statut actif doit être un booléen', 400);
     }
-    if (!(await Personnel.remove(matricule))) throw new ErreurMetier('Compte introuvable', 404);
-    res.status(204).end();
+    if (matricule === req.utilisateur.matricule && !actif) {
+      throw new ErreurMetier('Vous ne pouvez pas désactiver votre propre compte', 400);
+    }
+
+    const existant = await Personnel.findByMatricule(matricule);
+    if (!existant) throw new ErreurMetier('Compte introuvable', 404);
+    if (existant.actif === actif) {
+      return res.json(existant);
+    }
+
+    const compte = await Personnel.changerActivation(matricule, actif);
+    res.json(compte);
   } catch (erreur) {
-    next(erreur.code === '23503'
-      ? new ErreurMetier('Suppression impossible : cet agent a des permanences, missions ou congés enregistrés', 409)
-      : erreur);
+    next(erreur);
   }
 }
 
-module.exports = { listerComptes, creerCompte, modifierCompte, supprimerCompte };
+module.exports = { listerComptes, creerCompte, modifierCompte, changerActivationCompte };

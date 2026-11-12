@@ -4,10 +4,12 @@ import { ROLES } from '../roles.js';
 import { ajouterJours, formaterDateFr, lundiDe, semaineCourante } from '../utils/dates.js';
 import GrilleCadres from './GrilleCadres.jsx';
 import GrilleSurveillants from './GrilleSurveillants.jsx';
+import { useToasts, ToastsContainer } from '../components/Toasts.jsx';
 
-// Boundary : planification des permanences (cadres et surveillants) et export du tableau en Excel.
 export default function Permanences() {
   const { api, telecharger, utilisateur } = useAuth();
+  const { toasts, ajouterToast } = useToasts();
+  
   const estChef = utilisateur?.fonction === ROLES.CHEF;
 
   const [onglet, setOnglet] = useState('cadres');
@@ -16,11 +18,9 @@ export default function Permanences() {
   const [numeroUnite, setNumeroUnite] = useState(String(utilisateur?.numeroUnite ?? ''));
   const [semaine, setSemaine] = useState(null);
   const [modifie, setModifie] = useState(false);
-  const [erreur, setErreur] = useState('');
   const [export_, setExport] = useState(false);
 
-  const lectureSeule = estChef &&
-    Number(numeroUnite) !== Number(utilisateur?.numeroUnite);
+  const lectureSeule = estChef && Number(numeroUnite) !== Number(utilisateur?.numeroUnite);
 
   useEffect(() => {
     let annule = false;
@@ -29,13 +29,11 @@ export default function Permanences() {
         if (!annule) setUnites(resultat);
       })
       .catch((e) => {
-        if (!annule) setErreur(e.message);
+        if (!annule) ajouterToast(e.message, 'erreur');
       });
     return () => { annule = true; };
   }, [api]);
 
-  // Évite de perdre une saisie non enregistrée lorsqu'on change de semaine,
-  // d'onglet ou d'unité.
   function confirmerAbandon() {
     if (!modifie) return true;
     if (!window.confirm('Des modifications ne sont pas enregistrées. Continuer sans les enregistrer ?')) {
@@ -61,7 +59,6 @@ export default function Permanences() {
   };
 
   async function exporter() {
-    setErreur('');
     setExport(true);
     try {
       const fichier = await telecharger(`/api/permanences/export?${new URLSearchParams({ date })}`);
@@ -73,101 +70,124 @@ export default function Permanences() {
       lien.click();
       lien.remove();
       URL.revokeObjectURL(adresse);
+      ajouterToast('Exportation Excel réussie', 'succes');
     } catch (e) {
-      setErreur(e.message);
+      ajouterToast(e.message, 'erreur');
     } finally {
       setExport(false);
     }
   }
 
+  const anneeAffichee = semaine?.annee || new Date().getFullYear();
+  const optionsAnnees = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
+
+  const changerAnnee = (e) => {
+    const anneeChoisie = Number(e.target.value);
+    const differenceAnnees = anneeChoisie - anneeAffichee;
+    allerA(ajouterJours(date, differenceAnnees * 364));
+  };
+
   return (
     <>
-      <section className="carte">
-        <h1>Permanences</h1>
-        {erreur && <p role="alert" className="alerte erreur">{erreur}</p>}
+      <ToastsContainer toasts={toasts} />
 
-        <div className="barre-semaine">
-          <button type="button" className="secondaire" onClick={() => allerA(ajouterJours(date, -7))}>
-            ◀ Semaine précédente
-          </button>
-          <div className="titre-semaine">
-            {semaine
-              ? <>
-                  <strong>Semaine {semaine.numeroIso} · {semaine.annee}</strong>
-                  <span>du {formaterDateFr(semaine.dateDebut)} au {formaterDateFr(semaine.dateFin)}</span>
+      <section className="carte">
+        {/* TITRE CENTRÉ */}
+        <h1 className="titre-centre-planning" style={{ marginBottom: '1.5rem' }}>Permanences</h1>
+
+        {/* NAVIGATION SEMAINE */}
+        <div className="barre-navigation-planning">
+          <button type="button" className="btn-fleche" onClick={() => allerA(ajouterJours(date, -7))}>◀</button>
+          
+          <div className="centre-planning">
+            <div className="conteneur-titre-semaine">
+              {semaine ? (
+                <>
+                  <strong className="ligne-semaine">Semaine {semaine.numeroIso}</strong>
+                  <span className="ligne-dates">du {formaterDateFr(semaine.dateDebut)} au {formaterDateFr(semaine.dateFin)}</span>
                 </>
-              : <strong>Chargement…</strong>}
+              ) : (
+                <strong>Chargement…</strong>
+              )}
+            </div>
+            <select className="select-annee-planning" value={anneeAffichee} onChange={changerAnnee}>
+              {optionsAnnees.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
           </div>
-          <button type="button" className="secondaire" onClick={() => allerA(ajouterJours(date, 7))}>
-            Semaine suivante ▶
-          </button>
+          
+          <button type="button" className="btn-fleche" onClick={() => allerA(ajouterJours(date, 7))}>▶</button>
         </div>
 
-        <div className="grille">
+        {/* SÉLECTION DATE LIBRE */}
+        <div className="barre-actions-planning" style={{ justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
           <div>
-            <label htmlFor="semaineDu">Aller à la semaine du</label>
+            <label htmlFor="semaineDu" style={{ display: 'inline-block', marginRight: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>Aller à la semaine du</label>
             <input
               id="semaineDu"
               type="date"
               value={date}
               onChange={(e) => e.target.value && allerA(e.target.value)}
+              style={{ width: 'auto', display: 'inline-block' }}
             />
           </div>
-          <div className="action">
+        </div>
+
+        {/* ONGLETS ET SÉLECTEUR D'UNITÉ + BOUTON EXPORT */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+          <div className="onglets" role="tablist" style={{ borderBottom: 'none', margin: 0, paddingBottom: 0 }}>
             <button
               type="button"
-              className="secondaire"
+              role="tab"
+              aria-selected={onglet === 'cadres'}
+              onClick={() => changerOnglet('cadres')}
+            >
+              Cadres de maintenance
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={onglet === 'surveillants'}
+              onClick={() => changerOnglet('surveillants')}
+            >
+              Surveillants
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {onglet === 'cadres' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label htmlFor="unite" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>Unité :</label>
+                <select
+                  id="unite"
+                  value={numeroUnite}
+                  onChange={(e) => changerUnite(e.target.value)}
+                  className="select-annee-planning"
+                  style={{ width: 'auto', minWidth: '150px' }}
+                >
+                  {unites.map((u) => (
+                    <option key={u.numero_unite} value={u.numero_unite}>
+                      {u.nom_unite}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-secondaire"
               onClick={exporter}
               disabled={export_ || modifie || !semaine}
               title={modifie ? 'Enregistrez le planning avant de l’exporter' : undefined}
             >
-              {export_ ? 'Génération…' : 'Exporter le tableau (Excel)'}
+              {export_ ? 'Génération…' : 'Exporter Excel'}
             </button>
           </div>
         </div>
 
-        <div className="onglets" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={onglet === 'cadres'}
-            onClick={() => changerOnglet('cadres')}
-          >
-            Cadres de maintenance
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={onglet === 'surveillants'}
-            onClick={() => changerOnglet('surveillants')}
-          >
-            Surveillants
-          </button>
-        </div>
-
-        {onglet === 'cadres' && (
-          <div className="grille unite-choix">
-            <div>
-              <label htmlFor="unite">Unité à consulter</label>
-              <select
-                id="unite"
-                value={numeroUnite}
-                onChange={(e) => changerUnite(e.target.value)}
-              >
-                {unites.map((u) => (
-                  <option key={u.numero_unite} value={u.numero_unite}>
-                    {u.nom_unite}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
         {onglet === 'cadres' && lectureSeule && (
-          <p className="information" role="status">
-            Consultation uniquement : vous pouvez consulter le planning de cette unité,
-            mais vous ne pouvez modifier que celui de votre propre unité.
+          <p className="information" role="status" style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#b45309', background: '#fef3c7', padding: '0.5rem', borderRadius: '6px' }}>
+            Consultation uniquement : vous pouvez consulter le planning de cette unité, mais vous ne pouvez modifier que celui de votre propre unité.
           </p>
         )}
       </section>

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ROLES } from '../roles.js';
 import { formaterDateFr, semaineCourante } from '../utils/dates.js';
+import { useToasts, ToastsContainer } from '../components/Toasts.jsx';
 
-// Boundary : consultation de la disponibilité (règles RG1/RG2, portées par DisponibiliteService)
 function libelleConflit(c) {
   const periode = c.dateDebut === c.dateFin
     ? formaterDateFr(c.dateDebut)
@@ -13,7 +13,9 @@ function libelleConflit(c) {
 
 export default function Disponibilites() {
   const { api, utilisateur } = useAuth();
-  const estChef = utilisateur.fonction === ROLES.CHEF; // RG8 : un chef reste sur son unité
+  const { toasts, ajouterToast } = useToasts();
+  
+  const estChef = utilisateur.fonction === ROLES.CHEF;
   const [debutDefaut, finDefaut] = useMemo(() => semaineCourante(), []);
 
   const [unites, setUnites] = useState([]);
@@ -22,23 +24,25 @@ export default function Disponibilites() {
   const [dateFin, setDateFin] = useState(finDefaut);
   const [ignorerPermanences, setIgnorerPermanences] = useState(false);
   const [resultats, setResultats] = useState(null);
-  const [erreur, setErreur] = useState('');
   const [chargement, setChargement] = useState(false);
 
   useEffect(() => {
-    api('/api/unites').then(setUnites).catch((e) => setErreur(e.message));
+    api('/api/unites')
+      .then(setUnites)
+      .catch((e) => ajouterToast(e.message, 'erreur'));
   }, [api]);
 
   async function verifier(evenement) {
     evenement.preventDefault();
-    setErreur('');
     setChargement(true);
     try {
       const parametres = new URLSearchParams({ numeroUnite, dateDebut, dateFin });
       if (ignorerPermanences) parametres.set('ignorer', 'permanence');
-      setResultats(await api(`/api/disponibilites?${parametres}`));
+      const donnees = await api(`/api/disponibilites?${parametres}`);
+      setResultats(donnees);
+      ajouterToast('Vérification terminée', 'succes');
     } catch (e) {
-      setErreur(e.message);
+      ajouterToast(e.message, 'erreur');
       setResultats(null);
     } finally {
       setChargement(false);
@@ -49,14 +53,15 @@ export default function Disponibilites() {
 
   return (
     <>
+      <ToastsContainer toasts={toasts} />
+
       <section className="carte">
-        <h1>Disponibilité du personnel</h1>
-        <p className="sous-titre">
+        <h1 className="titre-centre-planning" style={{ marginBottom: '0.5rem' }}>Disponibilité du personnel</h1>
+        <p className="sous-titre" style={{ textAlign: 'center', marginBottom: '2rem' }}>
           Un agent est indisponible s'il a, sur la période, un congé validé, une mission ou une permanence.
         </p>
-        {erreur && <p role="alert" className="alerte erreur">{erreur}</p>}
 
-        <form className="grille" onSubmit={verifier}>
+        <form className="grille" onSubmit={verifier} style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '2rem' }}>
           <div>
             <label htmlFor="unite">Unité</label>
             <select id="unite" value={numeroUnite} disabled={estChef}
@@ -70,43 +75,64 @@ export default function Disponibilites() {
           </div>
           <div>
             <label htmlFor="dateFin">Au</label>
-            <input id="dateFin" type="date" required value={dateFin} onChange={(e) => setDateFin(e.target.value)} />
+            <input id="dateFin" type="date" required value={dateFin} min={dateDebut} onChange={(e) => setDateFin(e.target.value)} />
           </div>
-          <div className="case">
-            <input id="ignorer" type="checkbox" checked={ignorerPermanences}
-                   onChange={(e) => setIgnorerPermanences(e.target.checked)} />
-            <label htmlFor="ignorer">Ignorer les permanences (planification de permanence)</label>
+          <div className="case" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '100%', paddingBottom: '0.5rem' }}>
+            <input id="ignorer" type="checkbox" checked={ignorerPermanences} onChange={(e) => setIgnorerPermanences(e.target.checked)} style={{ width: 'auto' }} />
+            <label htmlFor="ignorer" style={{ margin: 0, fontWeight: 'normal', fontSize: '0.9rem' }}>Ignorer les permanences</label>
           </div>
           <div className="action">
-            <button type="submit" disabled={chargement}>{chargement ? 'Vérification…' : 'Vérifier'}</button>
+            <button type="submit" className="btn-primaire" disabled={chargement}>
+              {chargement ? 'Vérification…' : 'Vérifier'}
+            </button>
           </div>
         </form>
       </section>
 
       {resultats && (
         <section className="carte">
-          <h2>Résultat : {nbDisponibles} disponible(s) sur {resultats.length}</h2>
+          <div className="entete-section-titre" style={{ marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0 }}>Résultat</h2>
+            <span className="badge-statut valide" style={{ fontSize: '0.95rem', padding: '0.4rem 1rem' }}>
+              {nbDisponibles} disponible(s) sur {resultats.length}
+            </span>
+          </div>
+
           <div className="defilement">
-            <table>
-              <thead><tr><th>Agent</th><th>Fonction</th><th>Statut</th><th>Conflits</th></tr></thead>
+            <table className="tableau-moderne">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Fonction</th>
+                  <th className="text-center">Statut</th>
+                  <th>Conflits</th>
+                </tr>
+              </thead>
               <tbody>
                 {resultats.map((p) => (
                   <tr key={p.matricule}>
-                    <td>{p.prenom} {p.nom}</td>
+                    <td className="font-bold">
+                      {p.identifiant && <div>{p.identifiant}</div>}
+                      <div className="text-small" style={{ fontWeight: 'normal' }}>{p.prenom} {p.nom}</div>
+                    </td>
                     <td>{p.fonction}</td>
-                    <td>
-                      <span className={`badge ${p.disponible ? 'ok' : 'ko'}`}>
+                    <td className="text-center">
+                      <span className={`badge-statut ${p.disponible ? 'valide' : 'refuse'}`}>
                         {p.disponible ? 'Disponible' : 'Indisponible'}
                       </span>
                     </td>
                     <td>
                       {p.conflits.length === 0
                         ? '—'
-                        : <ul className="conflits">{p.conflits.map((c, i) => <li key={i}>{libelleConflit(c)}</li>)}</ul>}
+                        : <ul className="conflits" style={{ margin: 0, paddingLeft: '1rem', fontSize: '0.85rem' }}>
+                            {p.conflits.map((c, i) => <li key={i}>{libelleConflit(c)}</li>)}
+                          </ul>}
                     </td>
                   </tr>
                 ))}
-                {resultats.length === 0 && <tr><td colSpan="4" className="vide">Aucun agent dans cette unité</td></tr>}
+                {resultats.length === 0 && (
+                  <tr><td colSpan="4" className="vide">Aucun agent dans cette unité</td></tr>
+                )}
               </tbody>
             </table>
           </div>

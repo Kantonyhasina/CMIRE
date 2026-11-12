@@ -1,5 +1,10 @@
 const router = require('express').Router();
-const { listerComptes, creerCompte, modifierCompte, supprimerCompte } = require('../controllers/adminController');
+const {
+  listerComptes,
+  creerCompte,
+  modifierCompte,
+  changerActivationCompte,
+} = require('../controllers/adminController');
 const { verifierToken, exigerRole } = require('../middleware/auth');
 
 router.use(verifierToken, exigerRole('Administrateur'));
@@ -7,6 +12,6 @@ router.use(verifierToken, exigerRole('Administrateur'));
 router.get('/', listerComptes);
 router.post('/', creerCompte);
 router.put('/:matricule', modifierCompte);
-router.delete('/:matricule', supprimerCompte);
+router.patch('/:matricule/activation', changerActivationCompte);
 
 module.exports = router;

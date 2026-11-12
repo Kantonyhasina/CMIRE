@@ -55,8 +55,14 @@ CREATE TABLE personnel (
     identifiant       VARCHAR(255) NOT NULL UNIQUE,
     mot_de_passe      VARCHAR(255) NOT NULL,
     numero_telephone  VARCHAR(30),
-    numero_unite      INTEGER      NOT NULL REFERENCES unite (numero_unite)
+    numero_unite      INTEGER      NOT NULL REFERENCES unite (numero_unite),
+    actif             BOOLEAN      NOT NULL DEFAULT TRUE,
+    date_desactivation TIMESTAMPTZ,
+    date_reactivation  TIMESTAMPTZ
 );
+
+CREATE INDEX idx_personnel_actif_unite_fonction
+    ON personnel (actif, numero_unite, fonction);
 
 -- ---------- Permanences ----------
 

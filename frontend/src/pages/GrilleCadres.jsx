@@ -2,11 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ROLES } from '../roles.js';
 import { formaterDateFr } from '../utils/dates.js';
+import { useToasts, ToastsContainer } from '../components/Toasts.jsx';
 
-// Boundary : FormPermanenceCadre.
-// Une case cochée = l'agent assure ce créneau.
-// Une case grisée = agent en congé validé ou en mission ce jour-là (RG1/RG2).
-// Le chef de service est affiché avant les cadres et peut lui aussi être planifié.
 const cle = (matricule, jour, creneau) => `${matricule}|${jour}|${creneau}`;
 
 export default function GrilleCadres({
@@ -17,12 +14,12 @@ export default function GrilleCadres({
   onSemaine,
 }) {
   const { api } = useAuth();
+  const { toasts, ajouterToast } = useToasts();
+  
   const [donnees, setDonnees] = useState(null);
   const [selection, setSelection] = useState(new Set());
   const [modifie, setModifie] = useState(false);
-  const [erreur, setErreur] = useState('');
   const [details, setDetails] = useState([]);
-  const [message, setMessage] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
   function appliquer(reponse) {
@@ -38,20 +35,17 @@ export default function GrilleCadres({
   useEffect(() => {
     let annule = false;
     setDonnees(null);
-    setErreur('');
     setDetails([]);
-    setMessage('');
 
     api(`/api/permanences/cadres?${new URLSearchParams({ date, numeroUnite })}`)
       .then((reponse) => {
         if (!annule) appliquer(reponse);
       })
       .catch((e) => {
-        if (!annule) setErreur(e.message);
+        if (!annule) ajouterToast(e.message, 'erreur');
       });
 
     return () => { annule = true; };
-    // appliquer est volontairement défini dans le composant et les dépendances utiles sont date/unité/API.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, date, numeroUnite]);
 
@@ -66,15 +60,12 @@ export default function GrilleCadres({
     setSelection(suivante);
     setModifie(true);
     onModifie(true);
-    setMessage('');
   }
 
   async function enregistrer() {
     if (lectureSeule || !modifie || envoi) return;
 
-    setErreur('');
     setDetails([]);
-    setMessage('');
     setEnvoi(true);
 
     try {
@@ -89,9 +80,9 @@ export default function GrilleCadres({
       });
 
       appliquer(reponse);
-      setMessage('Planning enregistré');
+      ajouterToast('Planning enregistré avec succès', 'succes');
     } catch (e) {
-      setErreur(e.message);
+      ajouterToast(e.message, 'erreur');
       setDetails(e.details || []);
     } finally {
       setEnvoi(false);
@@ -99,9 +90,7 @@ export default function GrilleCadres({
   }
 
   if (!donnees) {
-    return erreur
-      ? <p role="alert" className="alerte erreur">{erreur}</p>
-      : <p>Chargement…</p>;
+    return <p>Chargement…</p>;
   }
 
   const blocage = (agent, jourDate) =>
@@ -116,14 +105,13 @@ export default function GrilleCadres({
 
   return (
     <>
-      {erreur && <p role="alert" className="alerte erreur">{erreur}</p>}
+      <ToastsContainer toasts={toasts} />
+
       {details.length > 0 && (
         <ul className="alerte erreur details">
           {details.map((d) => <li key={d}>{d}</li>)}
         </ul>
       )}
-      {message && <p role="status" className="alerte succes">{message}</p>}
-
 
       {donnees.agents.length === 0 ? (
         <p className="vide">Aucun chef de service ou cadre de maintenance dans cette unité.</p>
@@ -156,6 +144,7 @@ export default function GrilleCadres({
                     {agent.fonction === ROLES.CHEF && (
                       <small className="fonction-agent">Chef de service</small>
                     )}
+                    {agent.actif === false && <small className="statut-inactif">Compte désactivé · historique</small>}
                     {agent.numeroTelephone && <small> · {agent.numeroTelephone}</small>}
                   </th>
                   {donnees.jours.flatMap((j) => donnees.creneaux.map((c) => {
@@ -169,7 +158,7 @@ export default function GrilleCadres({
                         <input
                           type="checkbox"
                           checked={coche}
-                          disabled={lectureSeule || envoi || (Boolean(bloque) && !coche)}
+                          disabled={lectureSeule || envoi || (agent.actif === false && !coche) || (Boolean(bloque) && !coche)}
                           title={bloque ? `Indisponible : ${bloque.detail}` : undefined}
                           aria-label={`${agent.prenom} ${agent.nom} ${j.nom} ${c}`}
                           onChange={() => basculer(agent.matricule, j.nom, c)}

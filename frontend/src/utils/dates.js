@@ -14,6 +14,7 @@ export function semaineCourante(reference = new Date()) {
 }
 
 export function formaterDateFr(iso) {
+  if (!iso) return '—'; // ✅ SÉCURITÉ AJOUTÉE ICI
   const [annee, mois, jour] = iso.split('-');
   return `${jour}/${mois}/${annee}`;
 }
@@ -64,5 +65,6 @@ export function trimestreDe(reference = new Date()) {
 }
 
 export function formaterPeriode(debut, fin) {
+  if (!debut || !fin) return '—'; // ✅ SÉCURITÉ AJOUTÉE ICI
   return debut === fin ? formaterDateFr(debut) : `du ${formaterDateFr(debut)} au ${formaterDateFr(fin)}`;
 }

@@ -5,9 +5,8 @@ Node.js / Express / PostgreSQL. Architecture en couches : routes → controllers
 ## Démarrage
 
 1. Installer Node.js 18 ou plus (https://nodejs.org, version LTS).
-2. Base de données : nouvelle installation → exécuter `db/cmire_schema.sql` ;
-   base existante → exécuter une seule fois `db/migration_001_telephone_matricule.sql`.
-   (Les modules missions et congés utilisent les tables déjà présentes : aucune migration supplémentaire.)
+2. Base de données : nouvelle installation → exécuter `db/cmire_schema.sql`, puis les migrations nécessaires à votre version.
+   Pour une base CMIRE déjà utilisée avec les migrations 001 à 003, exécuter maintenant `db/migration_004_comptes_activation.sql` une seule fois.
 3. Dans ce dossier : `npm install`
 4. Copier `.env.example` vers `.env` et renseigner le mot de passe PostgreSQL, le nom de la base et `JWT_SECRET`.
 5. Créer un administrateur (le matricule est attribué automatiquement) :
@@ -24,14 +23,16 @@ Node.js / Express / PostgreSQL. Architecture en couches : routes → controllers
 
 ## Routes
 
-Les requêtes protégées envoient `Authorization: Bearer <token>`. Les droits sont relus en base à chaque
-requête : un compte supprimé ou dont la fonction change perd ses accès immédiatement.
+Les requêtes protégées envoient `Authorization: Bearer <token>`. Les droits et le statut actif sont relus en base à chaque
+requête : un compte désactivé perd immédiatement ses accès, sans suppression de ses données historiques.
 
 | Méthode | Route | Accès |
 |---|---|---|
 | POST | /api/auth/login | public |
 | GET | /api/auth/me | connecté |
-| GET, POST, PUT /:matricule, DELETE /:matricule | /api/comptes | Administrateur |
+| GET, POST, PUT /:matricule | /api/comptes | Administrateur |
+| PATCH /:matricule/activation (`{ actif: true/false }`) | /api/comptes | Administrateur |
+| GET | /api/dashboard | Utilisateur connecté (indicateurs selon le rôle) |
 | GET | /api/unites, /api/postes, /api/stations | connecté |
 | POST, PUT /:id, DELETE /:id | mêmes routes | Administrateur |
 | GET | /api/disponibilites?numeroUnite=&dateDebut=&dateFin=&ignorer= | Chef (son unité) |
@@ -63,5 +64,4 @@ requête : un compte supprimé ou dont la fonction change perd ses accès imméd
 - **Permanences** : un planning est refusé (409, avec le détail) si un agent est en congé validé ou en
   mission le jour affecté. Le planning d'une semaine est remplacé en bloc, dans une transaction.
 - **Surveillants** : tableau unique pour tous les postes ; le même surveillant peut tenir deux postes la nuit.
-- **Comptes** : on ne peut pas supprimer son propre compte ni changer sa propre fonction ; la fonction
-  d'un agent qui a des permanences ne peut pas changer ; un agent référencé ne peut pas être supprimé.
+- **Comptes** : la désactivation est logique (`personnel.actif = false`) ; elle interdit la connexion et les nouvelles sélections de personnel. Les permanences, missions et congés liés au matricule restent conservés. Un administrateur peut réactiver le compte depuis l'écran « Comptes désactivés ». Il ne peut pas désactiver son propre compte.

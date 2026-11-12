@@ -23,8 +23,10 @@ Si le backend n'est pas sur le port 3000 : `VITE_BACKEND_URL=http://localhost:40
 | Route | Accès | Cas d'utilisation |
 |---|---|---|
 | /connexion | public | S'authentifier |
-| / | connecté | accueil |
-| /comptes, /referentiels | Administrateur | Gérer les comptes, les unités, postes et stations |
+| / | connecté | tableau de bord adapté au rôle (indicateurs et accès rapides) |
+| /comptes | Administrateur | Gérer les comptes actifs du personnel |
+| /comptes/desactives | Administrateur | Consulter et réactiver les comptes désactivés |
+| /referentiels | Administrateur | Gérer les unités, postes et stations |
 | /permanences | Chef de service | Planifier les permanences (cadres, surveillants), exporter le tableau Excel |
 | /disponibilites | Chef de service | Vérifier la disponibilité du personnel de son unité |
 | /missions | Chef (planifie, affecte) · Cadre, Surveillant (consultent) | Planifier une mission trimestrielle, affecter des intervenants, consulter le planning des missions |

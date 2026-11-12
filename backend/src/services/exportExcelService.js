@@ -25,11 +25,11 @@ const estHospitalisation = (type) => /hospital/i.test(type);
 
 async function rassemblerDonnees(date) {
   const semaine = await Semaine.decrire(lundiDeLaSemaine(date));
-  const [unites, cadres, postes, surveillants, missions, conges] = await Promise.all([
+  const [unites, tousLesCadres, postes, tousLesSurveillants, missions, conges] = await Promise.all([
     Unite.findAll(),
-    Personnel.findCadresEtChefs(),
+    Personnel.findCadresEtChefs({ inclureInactifs: true }),
     Poste.findAll(),
-    Personnel.findByFonction(ROLES.SURVEILLANT),
+    Personnel.findByFonction(ROLES.SURVEILLANT, { inclureInactifs: true }),
     Agenda.missionsDeLaPeriode(semaine.dateDebut, semaine.dateFin),
     Agenda.congesDeLaPeriode(semaine.dateDebut, semaine.dateFin),
   ]);
@@ -39,6 +39,12 @@ async function rassemblerDonnees(date) {
         PermanenceSurveillant.findBySemaine(semaine.numeroSemaine),
       ])
     : [[], []];
+  // Inclure un compte inactif uniquement s'il possède une affectation déjà enregistrée
+  // dans cette semaine : l'export historique reste exact sans le proposer à la planification.
+  const affectesCadres = new Set(affCadres.map((a) => a.matricule));
+  const affectesSurveillants = new Set(affSurveillants.map((a) => a.matricule).filter(Boolean));
+  const cadres = tousLesCadres.filter((agent) => agent.actif || affectesCadres.has(agent.matricule));
+  const surveillants = tousLesSurveillants.filter((agent) => agent.actif || affectesSurveillants.has(agent.matricule));
 
   return {
     semaine, cadres, surveillants, affCadres, affSurveillants, missions, conges,

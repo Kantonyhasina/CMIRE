@@ -111,11 +111,15 @@ async function consulterCadres({ date, numeroUnite }) {
   const lundi = lundiDeLaSemaine(date);
   const semaine = await Semaine.decrire(lundi);
 
-  // Le chef est renvoyé en premier, puis les cadres de son unité.
-  const cadresEtChef = await Personnel.findCadresEtChefs({ numeroUnite });
   const affectations = semaine.numeroSemaine
     ? await PermanenceCadre.findBySemaineEtUnite(semaine.numeroSemaine, numeroUnite)
     : [];
+  // Les agents désactivés ne sont jamais proposés pour de nouvelles affectations.
+  // S'ils ont déjà une permanence dans la semaine consultée, on les garde visibles
+  // afin que l'historique reste lisible et que le chef puisse retirer l'ancienne case.
+  const tousLesCadres = await Personnel.findCadresEtChefs({ numeroUnite, inclureInactifs: true });
+  const affectes = new Set(affectations.map((a) => a.matricule));
+  const cadresEtChef = tousLesCadres.filter((agent) => agent.actif || affectes.has(agent.matricule));
 
   return {
     semaine: decrireSemaine(semaine),
@@ -137,8 +141,12 @@ async function enregistrerCadres({ date, numeroUnite, affectations }, utilisateu
 
   const lundi = lundiDeLaSemaine(date);
   const semaine = await Semaine.decrire(lundi);
-  const cadresEtChef = await Personnel.findCadresEtChefs({ numeroUnite });
-  const parMatricule = new Map(cadresEtChef.map((agent) => [agent.matricule, agent]));
+  const affectationsExistantes = semaine.numeroSemaine
+    ? await PermanenceCadre.findBySemaineEtUnite(semaine.numeroSemaine, numeroUnite)
+    : [];
+  const tousLesCadres = await Personnel.findCadresEtChefs({ numeroUnite, inclureInactifs: true });
+  const parMatricule = new Map(tousLesCadres.map((agent) => [agent.matricule, agent]));
+  const clesExistantes = new Set(affectationsExistantes.map((a) => `${a.matricule}|${a.jour}|${a.creneau}`));
 
   const vues = new Set();
   for (const a of affectations) {
@@ -151,9 +159,16 @@ async function enregistrerCadres({ date, numeroUnite, affectations }, utilisateu
     const cle = `${a.matricule}|${a.jour}|${a.creneau}`;
     if (vues.has(cle)) throw new ErreurMetier('Affectation en double', 400);
     vues.add(cle);
+    const agent = parMatricule.get(a.matricule);
+    if (!agent.actif && !clesExistantes.has(cle)) {
+      throw new ErreurMetier(`Le compte ${a.matricule} est désactivé : aucune nouvelle permanence ne peut lui être affectée`, 409);
+    }
   }
 
-  await exigerSansConflit(affectations, semaine, parMatricule);
+  // Les affectations historiques inchangées d'agents désactivés sont conservables.
+  // Seules les affectations actives passent par le contrôle de nouvelle disponibilité.
+  const nouvellesAffectationsActives = affectations.filter((a) => parMatricule.get(a.matricule)?.actif);
+  await exigerSansConflit(nouvellesAffectationsActives, semaine, parMatricule);
 
   await db.transaction(async (client) => {
     const numeroSemaine = await Semaine.trouverOuCreer(lundi, client);
@@ -168,13 +183,13 @@ async function enregistrerCadres({ date, numeroUnite, affectations }, utilisateu
 async function consulterSurveillants({ date }) {
   const lundi = lundiDeLaSemaine(date);
   const semaine = await Semaine.decrire(lundi);
-  const [postes, surveillants] = await Promise.all([
+  const [postes, tousLesSurveillants, affectations] = await Promise.all([
     Poste.findAll(),
-    Personnel.findByFonction(ROLES.SURVEILLANT),
+    Personnel.findByFonction(ROLES.SURVEILLANT, { inclureInactifs: true }),
+    semaine.numeroSemaine ? PermanenceSurveillant.findBySemaine(semaine.numeroSemaine) : Promise.resolve([]),
   ]);
-  const affectations = semaine.numeroSemaine
-    ? await PermanenceSurveillant.findBySemaine(semaine.numeroSemaine)
-    : [];
+  const affectes = new Set(affectations.map((a) => a.matricule).filter(Boolean));
+  const surveillants = tousLesSurveillants.filter((agent) => agent.actif || affectes.has(agent.matricule));
 
   return {
     semaine: decrireSemaine(semaine),
@@ -191,12 +206,18 @@ async function enregistrerSurveillants({ date, affectations }) {
 
   const lundi = lundiDeLaSemaine(date);
   const semaine = await Semaine.decrire(lundi);
-  const [postes, surveillants] = await Promise.all([
+  const [postes, tousLesSurveillants] = await Promise.all([
     Poste.findAll(),
-    Personnel.findByFonction(ROLES.SURVEILLANT),
+    Personnel.findByFonction(ROLES.SURVEILLANT, { inclureInactifs: true }),
   ]);
+  const affectationsExistantes = semaine.numeroSemaine
+    ? await PermanenceSurveillant.findBySemaine(semaine.numeroSemaine)
+    : [];
   const numerosPostes = new Set(postes.map((p) => p.numero_poste));
-  const parMatricule = new Map(surveillants.map((s) => [s.matricule, s]));
+  const parMatricule = new Map(tousLesSurveillants.map((s) => [s.matricule, s]));
+  const clesExistantes = new Set(affectationsExistantes
+    .filter((a) => a.matricule)
+    .map((a) => `${a.numeroPoste}|${a.jour}|${a.plage}|${a.matricule}`));
 
   // Une case contient soit un surveillant réel, soit une des deux désignations libres.
   // TECH ELB / TECH CNS ne sont volontairement liés à aucun matricule.
@@ -211,6 +232,12 @@ async function enregistrerSurveillants({ date, affectations }) {
     if (aUnAgent && !parMatricule.has(a.matricule)) {
       throw new ErreurMetier(`Agent inconnu ou n'est pas surveillant : ${a.matricule}`, 400);
     }
+    if (aUnAgent && !parMatricule.get(a.matricule).actif) {
+      const cleExistante = `${a.numeroPoste}|${a.jour}|${a.plage}|${a.matricule}`;
+      if (!clesExistantes.has(cleExistante)) {
+        throw new ErreurMetier(`Le compte ${a.matricule} est désactivé : aucune nouvelle permanence ne peut lui être affectée`, 409);
+      }
+    }
     if (aUneDesignation && !DESIGNATIONS_SURVEILLANT.has(a.designationSpeciale)) {
       throw new ErreurMetier('Désignation spéciale invalide : ' + a.designationSpeciale, 400);
     }
@@ -223,7 +250,8 @@ async function enregistrerSurveillants({ date, affectations }) {
     creneauxPris.add(cle);
   }
 
-  await exigerSansConflit(affectations, semaine, parMatricule);
+  const nouvellesAffectationsActives = affectations.filter((a) => a.matricule && parMatricule.get(a.matricule)?.actif);
+  await exigerSansConflit(nouvellesAffectationsActives, semaine, parMatricule);
 
   await db.transaction(async (client) => {
     const numeroSemaine = await Semaine.trouverOuCreer(lundi, client);

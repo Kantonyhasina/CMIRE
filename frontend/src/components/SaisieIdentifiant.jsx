@@ -17,12 +17,14 @@ export default function SaisieIdentifiant({
   const [ouvert, setOuvert] = useState(false);
   const [indexActif, setIndexActif] = useState(0);
   const identifiantId = id.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const agentDesactive = agents.find((agent) => agent.actif === false
+    && (agent.identifiant || '').toLocaleUpperCase() === valeur.trim().toLocaleUpperCase());
 
   const options = useMemo(() => {
     const recherche = valeur.trim().toLocaleUpperCase();
     const personnes = recherche
       ? agents
-        .filter((agent) => (agent.identifiant || '').toLocaleUpperCase().includes(recherche))
+        .filter((agent) => agent.actif !== false && (agent.identifiant || '').toLocaleUpperCase().includes(recherche))
         .sort((a, b) => (a.identifiant || '').localeCompare(b.identifiant || ''))
         .map((agent) => ({ type: 'agent', agent }))
       : [];
@@ -79,6 +81,7 @@ export default function SaisieIdentifiant({
         onKeyDown={gererClavier}
         onBlur={() => setOuvert(false)}
       />
+      {agentDesactive && <small className="statut-inactif">Compte désactivé · affectation existante. Effacez la valeur pour la retirer.</small>}
 
       {ouvert && options.length > 0 && (
         <div id={`${identifiantId}-suggestions`} className="suggestions-identifiant" role="listbox">

@@ -68,7 +68,7 @@ describe('protection des pages', () => {
     afficher('/comptes');
     expect(screen.getByRole('heading', { name: 'Accès refusé' })).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: 'Navigation principale' });
-    expect(within(menu).getByText('Accueil')).toBeInTheDocument();
+    expect(within(menu).getByText('Tableau de bord')).toBeInTheDocument();
     expect(within(menu).queryByText('Comptes')).not.toBeInTheDocument();
     expect(within(menu).queryByText('Disponibilités')).not.toBeInTheDocument();
   });
@@ -78,7 +78,7 @@ describe('protection des pages', () => {
     simulerApi({});
     afficher('/');
     const menu = screen.getByRole('navigation', { name: 'Navigation principale' });
-    for (const lien of ['Accueil', 'Comptes', 'Référentiels']) {
+    for (const lien of ['Tableau de bord', 'Comptes', 'Comptes désactivés', 'Référentiels']) {
       expect(within(menu).getByText(lien)).toBeInTheDocument();
     }
     for (const lien of ['Permanences', 'Disponibilités', 'Mon planning']) {
@@ -121,8 +121,8 @@ describe('protection des pages', () => {
 describe('gestion des comptes', () => {
   const unites = [200, [{ numero_unite: 1, nom_unite: 'CNS' }, { numero_unite: 3, nom_unite: 'RSI' }]];
   const liste = [200, [
-    { matricule: 'A001', nom: 'Rakoto', prenom: 'Jean', fonction: 'Administrateur', identifiant: 'admin', numero_unite: 3, nom_unite: 'RSI', numero_telephone: null },
-    { matricule: 'P002', nom: 'Rabe', prenom: 'Paul', fonction: 'Cadre de maintenance', identifiant: 'prabe', numero_unite: 1, nom_unite: 'CNS', numero_telephone: '0332337086' },
+    { matricule: 'A001', nom: 'Rakoto', prenom: 'Jean', fonction: 'Administrateur', identifiant: 'admin', numero_unite: 3, nom_unite: 'RSI', numero_telephone: null, actif: true },
+    { matricule: 'P002', nom: 'Rabe', prenom: 'Paul', fonction: 'Cadre de maintenance', identifiant: 'prabe', numero_unite: 1, nom_unite: 'CNS', numero_telephone: '0332337086', actif: true },
   ]];
 
   it('crée un compte sans saisir de matricule et affiche celui attribué', async () => {
@@ -222,46 +222,41 @@ describe('gestion des comptes', () => {
     expect(screen.getByLabelText('Nom')).toHaveValue('');
   });
 
-  it('supprime un compte après confirmation, sauf le sien', async () => {
+  it('désactive un compte sans utiliser de suppression physique', async () => {
     ouvrirSession(ADMIN);
     const fetchSimule = simulerApi({
       'GET /api/comptes': liste, 'GET /api/unites': unites,
-      'DELETE /api/comptes/P002': [204, null],
+      'PATCH /api/comptes/P002/activation': [200, { matricule: 'P002', actif: false }],
     });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
     afficher('/comptes');
 
-    expect(await screen.findByRole('button', { name: 'Supprimer Jean Rakoto' })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Supprimer Paul Rabe' }));
+    expect(await screen.findByRole('button', { name: 'Désactiver Jean Rakoto' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Désactiver Paul Rabe' }));
+    await user.click(screen.getByRole('button', { name: 'Désactiver le compte' }));
 
-    expect(window.confirm).toHaveBeenCalledWith('Supprimer le compte de Paul Rabe (P002) ?');
-    expect(await screen.findByRole('status')).toHaveTextContent('Compte P002 supprimé');
-    expect(appelsVers(fetchSimule, 'DELETE', '/api/comptes/P002')).toHaveLength(1);
+    expect(await screen.findByRole('status')).toHaveTextContent('Compte P002 désactivé');
+    const appel = appelsVers(fetchSimule, 'PATCH', '/api/comptes/P002/activation')[0];
+    expect(corpsEnvoye(appel)).toEqual({ actif: false });
+    expect(fetchSimule.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false);
   });
 
-  it('ne supprime rien si on refuse la confirmation', async () => {
+  it('réactive un compte depuis les comptes désactivés', async () => {
     ouvrirSession(ADMIN);
-    const fetchSimule = simulerApi({ 'GET /api/comptes': liste, 'GET /api/unites': unites });
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const user = userEvent.setup();
-    afficher('/comptes');
-    await user.click(await screen.findByRole('button', { name: 'Supprimer Paul Rabe' }));
-    expect(fetchSimule.mock.calls.some(([, o]) => o?.method === 'DELETE')).toBe(false);
-  });
-
-  it('affiche l\'erreur quand la suppression est refusée (agent référencé)', async () => {
-    ouvrirSession(ADMIN);
-    simulerApi({
-      'GET /api/comptes': liste, 'GET /api/unites': unites,
-      'DELETE /api/comptes/P002': [409, { message: 'Suppression impossible : cet agent a des permanences, missions ou congés enregistrés' }],
+    const compteDesactive = { ...liste[1][1], actif: false, dateDesactivation: '2026-10-01T00:00:00.000Z' };
+    const fetchSimule = simulerApi({
+      'GET /api/comptes': [200, [compteDesactive]], 'GET /api/unites': unites,
+      'PATCH /api/comptes/P002/activation': [200, { matricule: 'P002', actif: true }],
     });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
-    afficher('/comptes');
-    await user.click(await screen.findByRole('button', { name: 'Supprimer Paul Rabe' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Suppression impossible');
-    expect(screen.getByText('Rabe')).toBeInTheDocument();
+    afficher('/comptes/desactives');
+
+    await user.click(await screen.findByRole('button', { name: 'Réactiver Paul Rabe' }));
+    await user.click(screen.getByRole('button', { name: 'Réactiver le compte' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Compte P002 réactivé');
+    const appel = appelsVers(fetchSimule, 'PATCH', '/api/comptes/P002/activation')[0];
+    expect(corpsEnvoye(appel)).toEqual({ actif: true });
   });
 });
 

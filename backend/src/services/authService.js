@@ -7,7 +7,7 @@ async function authentifier(identifiant, motDePasse) {
   const personnel = await Personnel.findByIdentifiant(identifiant);
 
   // Même message que l'identifiant soit inconnu ou le mot de passe faux
-  const valide = personnel && (await bcrypt.compare(motDePasse, personnel.mot_de_passe));
+  const valide = personnel && personnel.actif && (await bcrypt.compare(motDePasse, personnel.mot_de_passe));
   if (!valide) {
     throw new ErreurMetier('Identifiant ou mot de passe incorrect', 401);
   }
