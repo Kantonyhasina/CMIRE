@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ROLES } from '../roles.js';
+import Modal from '../components/Modal.jsx';
 
 export const EVENEMENT_CONGES = 'cmire:conges-modifies';
 export const EVENEMENT_PLANNING = 'cmire:planning-modifies';
@@ -55,6 +56,9 @@ export default function Layout() {
   // État du menu déroulant pour le Chef
   const [menuChefOuvert, setMenuChefOuvert] = useState(false);
   const menuChefRef = useRef(null);
+
+  // État du modal de déconnexion
+  const [modalDeconnexion, setModalDeconnexion] = useState(false);
 
   // Ferme le menu du chef quand on change de page
   useEffect(() => {
@@ -145,101 +149,133 @@ export default function Layout() {
   };
 
   return (
-    <div className="app-layout">
-      <header className="entete">
-        <div className="entete-logo">
-          <img src="/logo-cmire.jpg" alt="Logo CMIRE" className="logo-img-nav" />
-          <span className="logo-texte-nav">CMIRE <span>. ASECNA</span></span>
-        </div>
-
-        <nav className="nav-centre" aria-label="Navigation principale">
-          <NavLink to="/" end className={classeLien}>
-            Tableau de bord
-          </NavLink>
-
-          {/* ================= AGENT ================= */}
-          {estAgent && (
-            <>
-              <NavLink to="/mon-planning" onClick={() => marquerCommeLu('planning')} className={classeLien}>
-                Mon planning
-                {notifications.planning > 0 && <span className="pastille-notif">{notifications.planning}</span>}
-              </NavLink>
-              <NavLink to="/mes-conges" onClick={() => marquerCommeLu('conges')} className={classeLien}>
-                Mes congés
-                {notifications.conges > 0 && <span className="pastille-notif">{notifications.conges}</span>}
-              </NavLink>
-              <NavLink to="/missions" onClick={() => marquerCommeLu('missions')} className={classeLien}>
-                Missions
-                {notifications.missions > 0 && <span className="pastille-notif">{notifications.missions}</span>}
-              </NavLink>
-              <NavLink to="/calendrier-conges" className={classeLien}>
-                Calendrier des congés
-              </NavLink>
-            </>
-          )}
-
-          {/* ================= CHEF ================= */}
-          {estChef && (
-            <>
-              <NavLink to="/permanences" className={classeLien}>Permanences</NavLink>
-              <NavLink to="/missions" className={classeLien}>Missions</NavLink>
-              <NavLink to="/demandes-conges" onClick={() => marquerCommeLu('demandesConges')} className={classeLien}>
-                Demandes de congé
-                {notifications.demandesConges > 0 && <span className="pastille-notif">{notifications.demandesConges}</span>}
-              </NavLink>
-
-              {/* MENU DÉROULANT POUR LE CHEF UNIQUEMENT */}
-              <div className="menu-deroulant" ref={menuChefRef}>
-                <button 
-                  type="button"
-                  className="nav-lien" 
-                  onClick={() => setMenuChefOuvert(!menuChefOuvert)}
-                  aria-expanded={menuChefOuvert}
-                >
-                  Planning & Dispo ▼
-                </button>
-                
-                {menuChefOuvert && (
-                  <div className="menu-deroulant-contenu">
-                    <NavLink to="/mon-planning" onClick={() => { marquerCommeLu('planning'); setMenuChefOuvert(false); }} className={classeLien}>
-                      Mon planning
-                    </NavLink>
-                    <NavLink to="/calendrier-conges" onClick={() => setMenuChefOuvert(false)} className={classeLien}>
-                      Calendrier des congés
-                    </NavLink>
-                    <NavLink to="/disponibilites" onClick={() => setMenuChefOuvert(false)} className={classeLien}>
-                      Disponibilités
-                    </NavLink>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* ================= ADMIN ================= */}
-          {estAdmin && (
-            <>
-              <NavLink to="/comptes" end className={classeLien}>Comptes</NavLink>
-              <NavLink to="/comptes/desactives" className={classeLien}>Comptes désactivés</NavLink>
-              <NavLink to="/referentiels" className={classeLien}>Référentiels</NavLink>
-            </>
-          )}
-        </nav>
-
-        <div className="entete-utilisateur">
-          <div className="profil">
-            <span className="profil-nom">{utilisateur.prenom} {utilisateur.nom}</span>
-            <span className="profil-role">{utilisateur.fonction}</span>
+    <>
+      <div className="app-layout">
+        <header className="entete">
+          <div className="entete-logo">
+            <img src="/logo-cmire.jpg" alt="Logo CMIRE" className="logo-img-nav" />
+            <span className="logo-texte-nav">CMIRE <span>. ASECNA</span></span>
           </div>
-          <button type="button" className="btn-deconnexion" onClick={deconnecter}>
-            Déconnexion
-          </button>
-        </div>
-      </header>
 
-      <main className="contenu">
-        <Outlet />
-      </main>
-    </div>
+          <nav className="nav-centre" aria-label="Navigation principale">
+            <NavLink to="/" end className={classeLien}>
+              Tableau de bord
+            </NavLink>
+
+            {/* ================= AGENT ================= */}
+            {estAgent && (
+              <>
+                <NavLink to="/mon-planning" onClick={() => marquerCommeLu('planning')} className={classeLien}>
+                  Mon planning
+                  {notifications.planning > 0 && (
+                    <span className="pastille-notif">{notifications.planning}</span>
+                  )}
+                </NavLink>
+
+                <NavLink to="/mes-conges" onClick={() => marquerCommeLu('conges')} className={classeLien}>
+                  Mes congés
+                  {notifications.conges > 0 && (
+                    <span className="pastille-notif">{notifications.conges}</span>
+                  )}
+                </NavLink>
+
+                <NavLink to="/permanences" className={classeLien}>
+                  Permanences
+                </NavLink>
+
+                {utilisateur.fonction === ROLES.CADRE && (
+                  <NavLink to="/missions" className={classeLien}>
+                    Missions
+                    {notifications.missions > 0 && (
+                      <span className="pastille-notif">{notifications.missions}</span>
+                    )}
+                  </NavLink>
+                )}
+
+                <NavLink to="/calendrier-conges" className={classeLien}>
+                  Calendrier des congés
+                </NavLink>
+              </>
+            )}
+
+            {/* ================= CHEF ================= */}
+            {estChef && (
+              <>
+                <NavLink to="/permanences" className={classeLien}>Permanences</NavLink>
+                <NavLink to="/missions" className={classeLien}>Missions</NavLink>
+                <NavLink to="/demandes-conges" onClick={() => marquerCommeLu('demandesConges')} className={classeLien}>
+                  Demandes de congé
+                  {notifications.demandesConges > 0 && <span className="pastille-notif">{notifications.demandesConges}</span>}
+                </NavLink>
+
+                {/* MENU DÉROULANT POUR LE CHEF UNIQUEMENT */}
+                <div className="menu-deroulant" ref={menuChefRef}>
+                  <button 
+                    type="button"
+                    className="nav-lien" 
+                    onClick={() => setMenuChefOuvert(!menuChefOuvert)}
+                    aria-expanded={menuChefOuvert}
+                  >
+                    Planning & Dispo ▼
+                  </button>
+                  
+                  {menuChefOuvert && (
+                    <div className="menu-deroulant-contenu">
+                      <NavLink to="/mon-planning" onClick={() => { marquerCommeLu('planning'); setMenuChefOuvert(false); }} className={classeLien}>
+                        Mon planning
+                      </NavLink>
+                      <NavLink to="/calendrier-conges" onClick={() => setMenuChefOuvert(false)} className={classeLien}>
+                        Calendrier des congés
+                      </NavLink>
+                      <NavLink to="/disponibilites" onClick={() => setMenuChefOuvert(false)} className={classeLien}>
+                        Disponibilités
+                      </NavLink>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ================= ADMIN ================= */}
+            {estAdmin && (
+              <>
+                <NavLink to="/comptes" end className={classeLien}>Comptes</NavLink>
+                <NavLink to="/comptes/desactives" className={classeLien}>Comptes désactivés</NavLink>
+                <NavLink to="/referentiels" className={classeLien}>Référentiels</NavLink>
+              </>
+            )}
+          </nav>
+
+          <div className="entete-utilisateur">
+            <div className="profil">
+              <span className="profil-nom">{utilisateur.prenom} {utilisateur.nom}</span>
+              <span className="profil-role">
+                {estAdmin 
+                  ? 'ADMINISTRATEUR' 
+                  : `${utilisateur.fonction} · ${utilisateur.nomUnite || utilisateur.numeroUnite || 'Unité non assignée'}`}
+              </span>
+            </div>
+            <button type="button" className="btn-deconnexion" onClick={() => setModalDeconnexion(true)}>
+              Déconnexion
+            </button>
+          </div>
+        </header>
+
+        <main className="contenu">
+          <Outlet />
+        </main>
+      </div>
+
+      {/* MODAL DE DÉCONNEXION */}
+      <Modal estOuvert={modalDeconnexion} onFermer={() => setModalDeconnexion(false)} titre="Confirmer la déconnexion">
+        <div className="contenu-suppression" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <p>Voulez-vous vraiment vous déconnecter de votre session ?</p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button type="button" className="btn-connexion" style={{ background: '#e2e8f0', color: '#1e293b' }} onClick={() => setModalDeconnexion(false)}>Annuler</button>
+          <button type="button" className="btn-connexion" onClick={deconnecter}>Se déconnecter</button>
+        </div>
+      </Modal>
+    </>
   );
 }

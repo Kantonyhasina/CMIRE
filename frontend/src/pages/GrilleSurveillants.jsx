@@ -11,7 +11,7 @@ const libellePlage = (plage) => {
   return `De ${debut} à ${fin}`;
 };
 
-export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
+export default function GrilleSurveillants({ date, onModifie,lectureSeule = false, onSemaine }) {
   const { api } = useAuth();
   const { toasts, ajouterToast } = useToasts();
   
@@ -168,6 +168,7 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
                   saisir={saisir}
                   choisirAgent={choisirAgent}
                   choisirDesignation={choisirDesignation}
+                  lectureSeule={lectureSeule}
                 />
               ))}
             </tbody>
@@ -177,15 +178,17 @@ export default function GrilleSurveillants({ date, onModifie, onSemaine }) {
 
       <div className="barre-actions">
         <span className="sous-titre">{Object.keys(selection).length} créneau(x) pourvu(s)</span>
-        <button type="button" onClick={enregistrer} disabled={envoi || !modifie}>
-          {envoi ? 'Enregistrement…' : 'Enregistrer le planning'}
-        </button>
+        {!lectureSeule && (
+  <button type="button" onClick={enregistrer} disabled={envoi || !modifie}>
+    {envoi ? 'Enregistrement…' : 'Enregistrer le planning'}
+  </button>
+)}
       </div>
     </>
   );
 }
 
-function PosteLignes({ poste, donnees, valeurCellule, bloque, saisir, choisirAgent, choisirDesignation }) {
+function PosteLignes({ poste, donnees, valeurCellule, bloque, saisir, choisirAgent, choisirDesignation, lectureSeule = false }) {
   return (
     <>
       <tr className="bandeau">
@@ -208,6 +211,7 @@ function PosteLignes({ poste, donnees, valeurCellule, bloque, saisir, choisirAge
                   onSaisie={(valeur) => saisir(k, valeur)}
                   onChoisir={(matricule) => choisirAgent(k, matricule)}
                   onChoisirSpeciale={(designation) => choisirDesignation(k, designation)}
+                  desactive={lectureSeule}
                 />
               </td>
             );

@@ -20,7 +20,7 @@ export default function Permanences() {
   const [modifie, setModifie] = useState(false);
   const [export_, setExport] = useState(false);
 
-  const lectureSeule = estChef && Number(numeroUnite) !== Number(utilisateur?.numeroUnite);
+  const lectureSeule = !estChef || Number(numeroUnite) !== Number(utilisateur?.numeroUnite);
 
   useEffect(() => {
     let annule = false;
@@ -132,7 +132,7 @@ export default function Permanences() {
           </div>
         </div>
 
-        {/* ONGLETS ET SÉLECTEUR D'UNITÉ + BOUTON EXPORT */}
+                {/* ONGLETS ET SÉLECTEUR D'UNITÉ + BOUTON EXPORT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem' }}>
           <div className="onglets" role="tablist" style={{ borderBottom: 'none', margin: 0, paddingBottom: 0 }}>
             <button
@@ -173,19 +173,22 @@ export default function Permanences() {
               </div>
             )}
 
-            <button
-              type="button"
-              className="btn-secondaire"
-              onClick={exporter}
-              disabled={export_ || modifie || !semaine}
-              title={modifie ? 'Enregistrez le planning avant de l’exporter' : undefined}
-            >
-              {export_ ? 'Génération…' : 'Exporter Excel'}
-            </button>
+            {/* BOUTON EXPORT : UNIQUEMENT POUR LE CHEF DE SERVICE */}
+            {estChef && (
+              <button
+                type="button"
+                className="btn-secondaire"
+                onClick={exporter}
+                disabled={export_ || modifie || !semaine}
+                title={modifie ? 'Enregistrez le planning avant de l’exporter' : undefined}
+              >
+                {export_ ? 'Génération…' : 'Exporter Excel'}
+              </button>
+            )}
           </div>
         </div>
 
-        {onglet === 'cadres' && lectureSeule && (
+        {lectureSeule && (
           <p className="information" role="status" style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#b45309', background: '#fef3c7', padding: '0.5rem', borderRadius: '6px' }}>
             Consultation uniquement : vous pouvez consulter le planning de cette unité, mais vous ne pouvez modifier que celui de votre propre unité.
           </p>
@@ -208,6 +211,7 @@ export default function Permanences() {
             <GrilleSurveillants
               key={date}
               date={date}
+              lectureSeule={lectureSeule}
               onModifie={setModifie}
               onSemaine={setSemaine}
             />

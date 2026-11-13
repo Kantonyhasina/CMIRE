@@ -9,12 +9,23 @@ const COLONNES_PUBLIQUES = `p.matricule, p.nom, p.prenom, p.fonction, p.identifi
 
 async function findByIdentifiant(identifiant) {
   const { rows } = await db.query(
-    `SELECT matricule, nom, prenom, fonction, identifiant, mot_de_passe,
-            numero_unite, actif
-       FROM personnel
-      WHERE identifiant = $1`,
+    `SELECT
+        p.matricule,
+        p.nom,
+        p.prenom,
+        p.fonction,
+        p.identifiant,
+        p.mot_de_passe,
+        p.numero_unite,
+        u.nom_unite AS "nomUnite",
+        p.actif
+     FROM personnel p
+     LEFT JOIN unite u
+       ON u.numero_unite = p.numero_unite
+     WHERE p.identifiant = $1`,
     [identifiant]
   );
+
   return rows[0] || null;
 }
 

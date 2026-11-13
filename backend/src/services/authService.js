@@ -18,6 +18,7 @@ async function authentifier(identifiant, motDePasse) {
     prenom: personnel.prenom,
     fonction: personnel.fonction,
     numeroUnite: personnel.numero_unite,
+    nomUnite: personnel.nomUnite,
   };
 
   const token = jwt.sign(

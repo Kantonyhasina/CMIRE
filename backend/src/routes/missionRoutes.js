@@ -7,8 +7,8 @@ const chef = exigerRole(ROLES.CHEF);
 
 router.use(verifierToken);
 
-router.get('/', exigerRole(ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT), c.lister);
-router.get('/export', exigerRole(ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT), c.exporterAnnuel);
+router.get('/', exigerRole(ROLES.CHEF, ROLES.CADRE), c.lister);
+router.get('/export', exigerRole(ROLES.CHEF, ROLES.CADRE), c.exporterAnnuel);
 router.post('/', chef, c.creer);
 router.put('/:id', chef, c.modifier);
 router.delete('/:id', chef, c.supprimer);

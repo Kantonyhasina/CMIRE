@@ -345,9 +345,11 @@ export default function Missions() {
 
         <div className="barre-actions-planning">
           <div className="actions-planning-annuel">
-            <button type="button" className="secondaire" onClick={exporter} disabled={exportEnCours}>
-              {exportEnCours ? 'Exportation…' : 'Exporter le planning Excel'}
-            </button>
+                        {estChef && (
+              <button type="button" className="secondaire" onClick={exporter} disabled={exportEnCours}>
+                {exportEnCours ? 'Exportation…' : 'Exporter le planning Excel'}
+              </button>
+            )}
           </div>
         </div>
       </section>

@@ -21,16 +21,20 @@ export default function App() {
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Accueil />} />
         <Route
-          path="permanences"
-          element={<RequireAuth roles={[ROLES.CHEF]}><Permanences /></RequireAuth>}
-        />
+  path="permanences"
+  element={
+    <RequireAuth roles={[ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT]}>
+      <Permanences />
+    </RequireAuth>
+  }
+/>
         <Route
           path="mon-planning"
           element={<RequireAuth roles={[ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT]}><MonPlanning /></RequireAuth>}
         />
         <Route
           path="missions"
-          element={<RequireAuth roles={[ROLES.CHEF, ROLES.CADRE, ROLES.SURVEILLANT]}><Missions /></RequireAuth>}
+          element={<RequireAuth roles={[ROLES.CHEF, ROLES.CADRE]}><Missions /></RequireAuth>}
         />
         <Route
           path="mes-conges"

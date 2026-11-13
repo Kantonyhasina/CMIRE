@@ -26,6 +26,7 @@ async function verifierToken(req, res, next) {
       matricule: personnel.matricule,
       fonction: personnel.fonction,
       numeroUnite: personnel.numero_unite,
+      nomUnite: personnel.nomUnite,
     };
     next();
   } catch (erreur) {
